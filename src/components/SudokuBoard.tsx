@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import clsx from "clsx";
 
-// 1. DEFINIMOS EL PUZZLE AQUÍ MISMO PARA EVITAR PROBLEMAS DE IMPORTACIÓN
 const INITIAL_PUZZLE = [
   8, 0, 1, 0, 9, 0, 0, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 6, 0, 0, 7, 0, 0,
   0, 0, 0, 2, 5, 0, 0, 0, 0, 0, 5, 0, 0, 0, 7, 3, 0, 0, 2, 7, 0, 0, 9, 2, 1, 5,
@@ -12,19 +11,17 @@ const INITIAL_PUZZLE = [
 ];
 
 export default function SudokuBoard() {
-  // Estado del Grid
   const [grid, setGrid] = useState<(number | null)[]>(
     INITIAL_PUZZLE.map((n) => (n === 0 ? null : n)),
   );
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
-  // --- NUEVA LÓGICA DE DETECCIÓN DE CONFLICTOS (INFALIBLE) ---
-  // Esta función se ejecuta en CADA renderizado y calcula TODOS los errores
+  // --- LÓGICA DE CONFLICTOS INFALIBLE (Monolítica) ---
   const getAllConflicts = (currentGrid: (number | null)[]) => {
     const conflictSet = new Set<number>();
 
     for (let i = 0; i < 81; i++) {
-      if (!currentGrid[i]) continue; // Si está vacío, saltar
+      if (!currentGrid[i]) continue;
 
       const val = currentGrid[i];
       const row = Math.floor(i / 9);
@@ -32,15 +29,13 @@ export default function SudokuBoard() {
       const boxRow = Math.floor(row / 3);
       const boxCol = Math.floor(col / 3);
 
-      // Comparamos contra todas las otras celdas
       for (let j = 0; j < 81; j++) {
-        if (i === j) continue; // No compararse consigo mismo
-        if (currentGrid[j] !== val) continue; // Solo nos importan los números iguales
+        if (i === j) continue;
+        if (currentGrid[j] !== val) continue;
 
         const targetRow = Math.floor(j / 9);
         const targetCol = j % 9;
 
-        // Verificamos si chocan en Fila, Columna o Caja
         const isSameRow = row === targetRow;
         const isSameCol = col === targetCol;
         const isSameBox =
@@ -48,14 +43,13 @@ export default function SudokuBoard() {
           Math.floor(targetCol / 3) === boxCol;
 
         if (isSameRow || isSameCol || isSameBox) {
-          conflictSet.add(i); // Marcamos la celda 'i' como conflictiva
+          conflictSet.add(i);
         }
       }
     }
     return conflictSet;
   };
 
-  // Calculamos los conflictos actuales
   const conflicts = getAllConflicts(grid);
   // -------------------------------------------------------------
 
@@ -133,22 +127,23 @@ export default function SudokuBoard() {
               isSameValue = true;
           }
 
-          let forcedBgColor = "#ffffff";
+          // --- CAMBIO AQUÍ: LÓGICA DE COLOR DE FONDO ---
+          // Si es inicial, usamos #dfdfdf. Si no, blanco.
+          let forcedBgColor = isInitial ? "#dfdfdf" : "#ffffff";
+
           let forcedTextColor = isInitial ? "#000000" : "#2563eb";
 
+          // Las selecciones y resaltados tienen prioridad y sobrescriben el color base
           if (isSelected) {
-            forcedBgColor = "#3b82f6";
+            forcedBgColor = "#e69100";
             forcedTextColor = "#ffffff";
           } else if (isSameValue) {
-            forcedBgColor = "#93c5fd";
+            forcedBgColor = "#e69100";
             forcedTextColor = "#1e3a8a";
           } else if (isPeer) {
-            forcedBgColor = "#e2e8f0";
+            forcedBgColor = "#f9eac2";
           }
 
-          // --- VERIFICACIÓN DE ERROR FINAL ---
-          // Simplemente preguntamos: ¿Está este índice en la lista negra de conflictos?
-          // Y nos aseguramos de no marcar las pistas iniciales (opcional, si quieres ver error en pistas quita el !isInitial)
           const hasConflict = !isInitial && conflicts.has(i);
 
           let zIndexValue = 0;
@@ -187,20 +182,19 @@ export default function SudokuBoard() {
                 {cellValue}
               </span>
 
-              {/* --- PUNTO ROJO DE ERROR (FORZADO) --- */}
-              {/* Usamos estilos directos para que nada lo oculte */}
+              {/* PUNTO ROJO DE ERROR */}
               {hasConflict && (
                 <div
                   style={{
                     position: "absolute",
-                    width: "12px", // Tamaño fijo visible
+                    width: "12px",
                     height: "12px",
-                    backgroundColor: "red", // Rojo puro estándar
+                    backgroundColor: "red",
                     borderRadius: "50%",
                     bottom: "10%",
                     right: "10%",
-                    zIndex: 50, // Z-index muy alto para que flote sobre todo
-                    boxShadow: "0 0 4px rgba(0,0,0,0.3)", // Sombrita para contraste
+                    zIndex: 50,
+                    boxShadow: "0 0 4px rgba(0,0,0,0.3)",
                   }}
                 />
               )}
