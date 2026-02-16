@@ -1,0 +1,10 @@
+para abrir el hostlocal-----npm run dev
+
+
+git add .
+git commit -m "ajuste logos"        **// escribir aqui como quieras que se suba el update 
+git push origin main
+
+
+
+npm run build
