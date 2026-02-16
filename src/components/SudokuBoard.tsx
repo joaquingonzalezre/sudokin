@@ -16,13 +16,11 @@ export default function SudokuBoard() {
   );
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
-  // --- LÓGICA DE CONFLICTOS INFALIBLE (Monolítica) ---
+  // --- LÓGICA DE CONFLICTOS ---
   const getAllConflicts = (currentGrid: (number | null)[]) => {
     const conflictSet = new Set<number>();
-
     for (let i = 0; i < 81; i++) {
       if (!currentGrid[i]) continue;
-
       const val = currentGrid[i];
       const row = Math.floor(i / 9);
       const col = i % 9;
@@ -32,26 +30,20 @@ export default function SudokuBoard() {
       for (let j = 0; j < 81; j++) {
         if (i === j) continue;
         if (currentGrid[j] !== val) continue;
-
         const targetRow = Math.floor(j / 9);
         const targetCol = j % 9;
-
         const isSameRow = row === targetRow;
         const isSameCol = col === targetCol;
         const isSameBox =
           Math.floor(targetRow / 3) === boxRow &&
           Math.floor(targetCol / 3) === boxCol;
-
-        if (isSameRow || isSameCol || isSameBox) {
-          conflictSet.add(i);
-        }
+        if (isSameRow || isSameCol || isSameBox) conflictSet.add(i);
       }
     }
     return conflictSet;
   };
 
   const conflicts = getAllConflicts(grid);
-  // -------------------------------------------------------------
 
   let selectedRow: number | null = null;
   let selectedCol: number | null = null;
@@ -95,21 +87,18 @@ export default function SudokuBoard() {
         Sudokin
       </h1>
 
-      <div className="grid grid-cols-9 gap-0 border-t-[3px] border-l-[3px] border-black select-none shadow-2xl max-w-fit mx-auto bg-white overflow-hidden">
+      <div
+        className="grid grid-cols-9 bg-white relative shadow-2xl max-w-fit mx-auto select-none overflow-hidden"
+        // BORDE EXTERNO: 4 solid black
+        style={{ border: "4px solid black" }}
+      >
         {grid.map((cellValue, i) => {
           const row = Math.floor(i / 9);
           const col = i % 9;
           const isInitial = INITIAL_PUZZLE[i] !== 0;
 
-          const isRightBlockEnd = col === 2 || col === 5 || col === 8;
-          const isBottomBlockEnd = row === 2 || row === 5 || row === 8;
-
-          let borderClass = "";
-          if (isRightBlockEnd) borderClass += " border-r-[3px] border-r-black";
-          else borderClass += " border-r border-r-gray-400";
-
-          if (isBottomBlockEnd) borderClass += " border-b-[3px] border-b-black";
-          else borderClass += " border-b border-b-gray-400";
+          const thinBorderRight = col !== 8 ? "1px solid #b0b0b0" : "none";
+          const thinBorderBottom = row !== 8 ? "1px solid #b0b0b0" : "none";
 
           const isSelected = i === selectedIdx;
           let isPeer = false;
@@ -146,24 +135,21 @@ export default function SudokuBoard() {
 
           const hasConflict = !isInitial && conflicts.has(i);
 
-          let zIndexValue = 0;
-          if (isRightBlockEnd || isBottomBlockEnd) zIndexValue = 20;
-          else if (isSelected) zIndexValue = 10;
-
           return (
             <div
               key={i}
               onClick={() => setSelectedIdx(i)}
               style={{
                 backgroundColor: forcedBgColor,
-                zIndex: zIndexValue,
+                zIndex: isSelected ? 10 : 0,
                 position: "relative",
+                borderRight: thinBorderRight,
+                borderBottom: thinBorderBottom,
               }}
               className={clsx(
                 "w-12 h-12 min-w-[48px] min-h-[48px] sm:w-16 sm:h-16 sm:min-w-[64px] sm:min-h-[64px]",
                 "flex items-center justify-center cursor-pointer select-none",
-                "border-l-0 border-t-0 border-solid bg-clip-padding outline-none",
-                borderClass,
+                "bg-clip-padding outline-none",
                 isInitial ? "font-black" : "font-bold",
               )}
             >
@@ -182,7 +168,6 @@ export default function SudokuBoard() {
                 {cellValue}
               </span>
 
-              {/* PUNTO ROJO DE ERROR */}
               {hasConflict && (
                 <div
                   style={{
@@ -201,10 +186,73 @@ export default function SudokuBoard() {
             </div>
           );
         })}
+
+        {/* --- LÍNEAS GRUESAS GRISES (OVERLAY) --- */}
+        {/* AJUSTE FINAL:
+            - Grosor: 4 (Igual que el borde negro externo)
+            - Color: ##979797 (Gris oscuro para buen contraste)
+            - Posición: calc(... - 1.5px) para centrar perfectamente una línea de 3px.
+        */}
+
+        {/* Vertical 1 */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            width: "4px",
+            backgroundColor: "#979797",
+            left: "calc(33.333% - 1.5px)",
+            pointerEvents: "none",
+            zIndex: 40,
+          }}
+        />
+
+        {/* Vertical 2 */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            width: "4px",
+            backgroundColor: "#979797",
+            left: "calc(66.666% - 1.5px)",
+            pointerEvents: "none",
+            zIndex: 40,
+          }}
+        />
+
+        {/* Horizontal 1 */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            height: "4px",
+            backgroundColor: "#979797",
+            top: "calc(33.333% - 1.5px)",
+            pointerEvents: "none",
+            zIndex: 40,
+          }}
+        />
+
+        {/* Horizontal 2 */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            height: "4px",
+            backgroundColor: "#979797",
+            top: "calc(66.666% - 1.5px)",
+            pointerEvents: "none",
+            zIndex: 40,
+          }}
+        />
       </div>
 
       <div className="mt-8 text-center text-gray-500 text-sm">
-        Sistema de Errores Activo
+        Tablero estilo Clásico • Bordes Perfectos
       </div>
     </div>
   );
