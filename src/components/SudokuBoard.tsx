@@ -82,7 +82,7 @@ export default function SudokuBoard() {
   const [inputMode, setInputMode] = useState<"normal" | "candidate">("normal");
   const [showCandidates, setShowCandidates] = useState(false);
 
-  // --- Lógica del Juego ---
+  // --- LÓGICA ---
   const handleUndo = useCallback(() => {
     if (isPaused || isGameWon) return;
     const previousState = undoLastMove();
@@ -307,7 +307,7 @@ export default function SudokuBoard() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4 font-sans">
       {/* HEADER */}
-      <div className="w-full max-w-5xl flex items-center justify-between mb-6 px-4">
+      <div className="w-full max-w-5xl flex items-center justify-between mb-8 px-4">
         <h1 className="text-4xl font-black text-gray-900 font-serif tracking-tight">
           Sudokin
         </h1>
@@ -332,14 +332,14 @@ export default function SudokuBoard() {
       </div>
 
       {/* ===================================================================
-          LAYOUT: FORZADO HORIZONTAL (FLEX-ROW)
+          LAYOUT PRINCIPAL - SOLUCIÓN "HARDCODED"
+          Usamos style={{ gap: '80px' }} para forzar la separación física.
+          Usamos flex-wrap para que no se compriman en pantallas pequeñas.
           =================================================================== */}
-      {/* CAMBIO CLAVE:
-          1. "flex-row": Obliga a ser fila horizontal.
-          2. "flex-nowrap": PROHÍBE que el panel se vaya abajo.
-          3. "overflow-x-auto": Si la pantalla es diminuta, añade barra de scroll en vez de romper el diseño.
-      */}
-      <div className="flex flex-row flex-nowrap items-start justify-center gap-8 w-full max-w-7xl overflow-x-auto pb-4">
+      <div
+        className="flex flex-row flex-wrap items-start justify-center w-full max-w-7xl pb-8 pl-4 pr-4"
+        style={{ gap: "80px" }}
+      >
         {/* TABLERO (LADO IZQUIERDO) */}
         <div className="relative shadow-2xl select-none shrink-0">
           <div
@@ -394,7 +394,6 @@ export default function SudokuBoard() {
                     borderBottom: thinBorderBottom,
                   }}
                   className={clsx(
-                    // TAMAÑO DE CELDA: 48px (w-12) - Tamaño estándar usable.
                     "w-12 h-12 min-w-[48px] min-h-[48px]",
                     "flex items-center justify-center cursor-pointer select-none bg-clip-padding outline-none",
                     isInitial ? "font-black" : "font-bold",
@@ -404,16 +403,16 @@ export default function SudokuBoard() {
                     <span
                       style={{
                         color: forcedTextColor,
-                        fontSize: "24px",
+                        fontSize: "28px",
                         lineHeight: "1",
                       }}
-                      className="flex items-center justify-center w-full h-full"
+                      className="flex items-center justify-center w-full h-full transform translate-y-[5%]"
                     >
                       {cellValue}
                     </span>
                   ) : (
                     showCandidates && (
-                      <div className="grid grid-cols-3 grid-rows-3 w-full h-full p-[1px] pointer-events-none">
+                      <div className="grid grid-cols-3 grid-rows-3 w-full h-full p-[2px] pointer-events-none">
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => {
                           const hasCandidate = cellCandidates.includes(num);
                           return (
@@ -449,7 +448,7 @@ export default function SudokuBoard() {
             })}
           </div>
 
-          {/* OVERLAY DE LÍNEAS (Ajustado) */}
+          {/* Lineas gruesas del tablero */}
           <div
             style={{
               position: "absolute",
@@ -500,8 +499,9 @@ export default function SudokuBoard() {
           />
         </div>
 
-        {/* PANEL DE CONTROL (LADO DERECHO - STICKY FORZADO) */}
-        <div className="w-[300px] shrink-0 sticky top-8 flex flex-col gap-4">
+        {/* PANEL DE CONTROL (LADO DERECHO) */}
+        {/* Aquí es donde forzamos la independencia del bloque */}
+        <div className="shrink-0 flex flex-col gap-4">
           <ControlPad
             onNumberClick={handleInput}
             onDeleteClick={handleDelete}
