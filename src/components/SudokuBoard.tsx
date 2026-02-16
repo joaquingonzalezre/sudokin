@@ -96,18 +96,21 @@ export default function SudokuBoard() {
           }
 
           let forcedBgColor = "#ffffff";
-          let forcedTextColor = undefined;
+          let forcedTextColor = undefined; // Si es undefined, usará el color por defecto (negro)
 
           if (isSelected) {
-            forcedBgColor = "#3b82f6";
-            forcedTextColor = "#000000";
+            forcedBgColor = "#3b82f6"; // Fondo Azul Selección
+            forcedTextColor = "#ffffff"; // Texto Blanco (para contraste)
           } else if (isSameValue) {
-            forcedBgColor = "#93c5fd";
-            forcedTextColor = "#1e3a8a";
+            forcedBgColor = "#93c5fd"; // Fondo Celeste
+            forcedTextColor = "#1e3a8a"; // Texto Azul Oscuro
           } else if (isPeer) {
-            forcedBgColor = "#e2e8f0";
+            forcedBgColor = "#e2e8f0"; // Fondo Gris
+            // Si es un número del usuario, lo pintamos de azul, si es del sistema, se queda negro (undefined)
             if (!isInitial && cellValue) forcedTextColor = "#2563eb";
           } else {
+            // ESTADO NORMAL
+            // Aquí es donde cambiamos el rojo por el azul que querías
             if (!isInitial && cellValue) forcedTextColor = "#2563eb";
           }
 
@@ -127,26 +130,23 @@ export default function SudokuBoard() {
               onClick={() => setSelectedIdx(i)}
               style={{
                 backgroundColor: forcedBgColor,
-                color: forcedTextColor,
                 zIndex: zIndexValue,
                 position: "relative",
+                // ¡IMPORTANTE!: AQUÍ YA NO PONEMOS 'color: forcedTextColor'
+                // Lo quitamos de aquí para que no manche los bordes.
               }}
               className={clsx(
-                // 1. DIMENSIONES DEL CUADRO (No tocar)
                 "w-12 h-12 min-w-[48px] min-h-[48px] sm:w-14 sm:h-14 sm:min-w-[56px] sm:min-h-[56px]",
-
-                // 2. TAMAÑO DE LA LETRA (¡AQUÍ ES!)
-                // Asegúrate de que diga text-3xl (móvil) y sm:text-4xl (PC)
                 "flex items-center justify-center text-3xl sm:text-4xl cursor-pointer select-none",
-
-                // 3. Resto de estilos...
                 "border-l-0 border-t-0 border-solid",
                 "bg-clip-padding outline-none",
                 borderClass,
                 isInitial ? "font-black" : "font-bold",
               )}
             >
-              {cellValue}
+              {/* ENVOLVEMOS EL NÚMERO EN UN SPAN */}
+              {/* Le aplicamos el color SOLO al texto */}
+              <span style={{ color: forcedTextColor }}>{cellValue}</span>
             </div>
           );
         })}
