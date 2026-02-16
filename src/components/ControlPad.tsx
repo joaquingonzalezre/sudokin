@@ -1,5 +1,9 @@
+"use client";
+
+import React from "react";
 import clsx from "clsx";
 
+// Definimos qué funciones necesita este panel para funcionar
 interface ControlPadProps {
   onNumberClick: (num: number) => void;
   onDeleteClick: () => void;
@@ -21,90 +25,149 @@ export default function ControlPad({
   showCandidates,
   setShowCandidates,
 }: ControlPadProps) {
+  // Estilo base para los números
+  const numButtonStyle = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "white",
+    border: "1px solid #ccc",
+    fontSize: "32px",
+    fontFamily: "Arial, sans-serif",
+    color: "#333",
+    cursor: "pointer",
+    userSelect: "none" as "none",
+    height: "70px",
+    borderRadius: "5px",
+    transition: "background-color 0.1s",
+  };
+
+  // Estilo específico para los botones de acción
+  const actionButtonStyle = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#e0e0e0",
+    border: "none",
+    fontSize: "18px",
+    fontFamily: "Arial, sans-serif",
+    color: "#333",
+    cursor: "pointer",
+    userSelect: "none" as "none",
+    height: "60px",
+    borderRadius: "10px",
+    fontWeight: "bold",
+  };
+
+  const containerStyle = {
+    width: "300px",
+    display: "flex",
+    flexDirection: "column" as "column",
+    gap: "20px",
+  };
+
   return (
-    <div className="flex flex-col w-[260px] select-none">
-      {/* SELECTOR DE MODO (TOGGLE NEGRO SÓLIDO) */}
-      <div className="flex w-full mb-6 border border-gray-200 rounded-md overflow-hidden bg-white shadow-sm">
-        <button
+    <div style={containerStyle}>
+      {/* 1. SECCIÓN TOGGLE */}
+      <div
+        style={{
+          display: "flex",
+          borderRadius: "20px",
+          overflow: "hidden",
+          border: "1px solid #333",
+        }}
+      >
+        <div
           onClick={() => setInputMode("normal")}
-          className={clsx(
-            "flex-1 py-2 text-sm font-semibold transition-all",
-            inputMode === "normal"
-              ? "bg-gray-900 text-white"
-              : "bg-white text-gray-400 hover:text-gray-600",
-          )}
+          style={{
+            flex: 1,
+            padding: "12px",
+            textAlign: "center",
+            cursor: "pointer",
+            backgroundColor: inputMode === "normal" ? "black" : "white",
+            color: inputMode === "normal" ? "white" : "black",
+            fontFamily: "Arial, sans-serif",
+            fontWeight: "bold",
+            fontSize: "14px",
+          }}
         >
           Normal
-        </button>
-        <button
+        </div>
+        <div
           onClick={() => setInputMode("candidate")}
-          className={clsx(
-            "flex-1 py-2 text-sm font-semibold transition-all border-l border-gray-100",
-            inputMode === "candidate"
-              ? "bg-gray-900 text-white"
-              : "bg-white text-gray-400 hover:text-gray-600",
-          )}
+          style={{
+            flex: 1,
+            padding: "12px",
+            textAlign: "center",
+            cursor: "pointer",
+            backgroundColor: inputMode === "candidate" ? "black" : "white",
+            color: inputMode === "candidate" ? "white" : "black",
+            fontFamily: "Arial, sans-serif",
+            fontWeight: "bold",
+            fontSize: "14px",
+            borderLeft: "1px solid #333",
+          }}
         >
           Candidate
-        </button>
+        </div>
       </div>
 
-      {/* TECLADO NUMÉRICO (CON ESPACIADO PROFESIONAL) */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      {/* 2. TECLADO NUMÉRICO (Grid 3x3) */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: "8px",
+        }}
+      >
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-          <button
+          <div
             key={num}
             onClick={() => onNumberClick(num)}
-            className="aspect-square bg-gray-200/80 rounded-md text-3xl font-bold text-gray-800 hover:bg-gray-300 active:scale-95 transition-all flex items-center justify-center border border-gray-300/50 shadow-sm"
+            style={numButtonStyle}
+            onMouseOver={(e) =>
+              (e.currentTarget.style.backgroundColor = "#e0e0e0")
+            }
+            onMouseOut={(e) =>
+              (e.currentTarget.style.backgroundColor = "white")
+            }
           >
             {num}
-          </button>
+          </div>
         ))}
       </div>
 
-      {/* BOTONES DE ACCIÓN */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <button
-          onClick={onDeleteClick}
-          className="h-14 flex items-center justify-center bg-gray-200/80 rounded-md hover:bg-red-50 hover:text-red-600 border border-gray-300/50 transition-colors text-gray-800 font-bold text-2xl"
-        >
-          ✕
-        </button>
-        <button
-          onClick={onUndoClick}
-          className="h-14 flex items-center justify-center bg-gray-200/80 rounded-md hover:bg-gray-300 border border-gray-300/50 transition-colors text-gray-800 font-bold text-lg"
-        >
+      {/* 3. SECCIÓN ACCIONES (Grid 2x2) */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: "10px",
+        }}
+      >
+        <button onClick={onUndoClick} style={actionButtonStyle}>
           Undo
         </button>
-      </div>
+        <button onClick={onDeleteClick} style={actionButtonStyle}>
+          Borrar
+        </button>
 
-      {/* TOGGLE AUTO CANDIDATE (ESTILO CHECKBOX MINIMALISTA) */}
-      <div
-        className="flex items-center space-x-2 cursor-pointer group px-1"
-        onClick={() => setShowCandidates(!showCandidates)}
-      >
-        <div
-          className={clsx(
-            "w-4 h-4 border rounded flex items-center justify-center transition-colors",
-            showCandidates
-              ? "bg-white border-gray-900"
-              : "border-gray-400 bg-white",
-          )}
+        {/* Botón de Visibilidad (Toggle Show Candidates) */}
+        <button
+          onClick={() => setShowCandidates(!showCandidates)}
+          style={{ ...actionButtonStyle, fontSize: "14px" }}
         >
-          {showCandidates && <div className="w-2 h-2 bg-gray-900 rounded-sm" />}
-        </div>
-        <span className="text-xs font-medium text-gray-600 group-hover:text-black">
-          Auto Candidate Mode
-        </span>
-      </div>
+          {showCandidates ? "Ocultar Notas" : "Ver Notas"}
+        </button>
 
-      {/* BOTÓN SECUNDARIO PARA CALCULAR */}
-      <button
-        onClick={onCreateCandidates}
-        className="mt-4 w-full py-2 text-[10px] font-bold text-gray-400 hover:text-blue-600 transition-colors uppercase tracking-widest text-left px-1"
-      >
-        + Refrescar Candidatos
-      </button>
+        {/* Botón de Calcular Candidatos */}
+        <button
+          onClick={onCreateCandidates}
+          style={{ ...actionButtonStyle, fontSize: "14px", color: "#2563eb" }}
+        >
+          Auto Notas
+        </button>
+      </div>
     </div>
   );
 }
