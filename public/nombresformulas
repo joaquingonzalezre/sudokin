@@ -1,10 +1,14 @@
 para abrir el hostlocal-----npm run dev
+npm run dev
 
 
 git add .
-git commit -m "ajuste logos"        **// escribir aqui como quieras que se suba el update 
+git commit -m "diseño y logica"        **// escribir aqui como quieras que se suba el update 
 git push origin main
 
 
 
-npm run build
+mejorar:
+1)circuro rojo cuando encuentre un error (2 8s en una fila, columna o casilla)
+2)crear evento al terminar el puzzle correctamente(sin tener error del paso anterior)
+3)
