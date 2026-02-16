@@ -58,27 +58,23 @@ export default function SudokuBoard() {
         Sudokin
       </h1>
 
-      <div className="grid grid-cols-9 gap-0 border-t-[3px] border-l-[3px] border-black select-none shadow-2xl max-w-fit mx-auto bg-white">
+      {/* GRID con tamaño fijo garantizado */}
+      <div className="grid grid-cols-9 gap-0 border-t-[3px] border-l-[3px] border-black select-none shadow-2xl max-w-fit mx-auto bg-white overflow-hidden">
         {grid.map((cellValue, i) => {
           const row = Math.floor(i / 9);
           const col = i % 9;
           const isInitial = INITIAL_PUZZLE[i] !== 0;
 
-          // Variables de Borde
           const isRightBlockEnd = col === 2 || col === 5 || col === 8;
           const isBottomBlockEnd = row === 2 || row === 5 || row === 8;
 
           let borderClass = "";
-
-          // Borde DERECHO
           if (isRightBlockEnd) borderClass += " border-r-[3px] border-r-black";
           else borderClass += " border-r border-r-gray-400";
 
-          // Borde INFERIOR
           if (isBottomBlockEnd) borderClass += " border-b-[3px] border-b-black";
           else borderClass += " border-b border-b-gray-400";
 
-          // LÓGICA DE COLORES
           const isSelected = i === selectedIdx;
           let isPeer = false;
           let isSameValue = false;
@@ -96,33 +92,21 @@ export default function SudokuBoard() {
           }
 
           let forcedBgColor = "#ffffff";
-          let forcedTextColor = undefined; // Si es undefined, usará el color por defecto (negro)
+          let forcedTextColor = isInitial ? "#000000" : "#2563eb";
 
           if (isSelected) {
-            forcedBgColor = "#3b82f6"; // Fondo Azul Selección
-            forcedTextColor = "#ffffff"; // Texto Blanco (para contraste)
+            forcedBgColor = "#3b82f6";
+            forcedTextColor = "#ffffff";
           } else if (isSameValue) {
-            forcedBgColor = "#93c5fd"; // Fondo Celeste
-            forcedTextColor = "#1e3a8a"; // Texto Azul Oscuro
+            forcedBgColor = "#93c5fd";
+            forcedTextColor = "#1e3a8a";
           } else if (isPeer) {
-            forcedBgColor = "#e2e8f0"; // Fondo Gris
-            // Si es un número del usuario, lo pintamos de azul, si es del sistema, se queda negro (undefined)
-            if (!isInitial && cellValue) forcedTextColor = "#2563eb";
-          } else {
-            // ESTADO NORMAL
-            // Aquí es donde cambiamos el rojo por el azul que querías
-            if (!isInitial && cellValue) forcedTextColor = "#2563eb";
+            forcedBgColor = "#e2e8f0";
           }
 
-          // Lógica Z-Index (Mantiene los bordes negros visibles)
           let zIndexValue = 0;
-          if (isRightBlockEnd || isBottomBlockEnd) {
-            zIndexValue = 20;
-          } else if (isSelected) {
-            zIndexValue = 10;
-          } else {
-            zIndexValue = 0;
-          }
+          if (isRightBlockEnd || isBottomBlockEnd) zIndexValue = 20;
+          else if (isSelected) zIndexValue = 10;
 
           return (
             <div
@@ -132,28 +116,38 @@ export default function SudokuBoard() {
                 backgroundColor: forcedBgColor,
                 zIndex: zIndexValue,
                 position: "relative",
-                // ¡IMPORTANTE!: AQUÍ YA NO PONEMOS 'color: forcedTextColor'
-                // Lo quitamos de aquí para que no manche los bordes.
               }}
               className={clsx(
-                "w-12 h-12 min-w-[48px] min-h-[48px] sm:w-14 sm:h-14 sm:min-w-[56px] sm:min-h-[56px]",
-                "flex items-center justify-center text-3xl sm:text-4xl cursor-pointer select-none",
-                "border-l-0 border-t-0 border-solid",
-                "bg-clip-padding outline-none",
+                // Mantenemos el tamaño fijo garantizado
+                "w-12 h-12 min-w-[48px] min-h-[48px] sm:w-16 sm:h-16 sm:min-w-[64px] sm:min-h-[64px]",
+                "flex items-center justify-center cursor-pointer select-none",
+                "border-l-0 border-t-0 border-solid bg-clip-padding outline-none",
                 borderClass,
                 isInitial ? "font-black" : "font-bold",
               )}
             >
-              {/* ENVOLVEMOS EL NÚMERO EN UN SPAN */}
-              {/* Le aplicamos el color SOLO al texto */}
-              <span style={{ color: forcedTextColor }}>{cellValue}</span>
+              {/* Contenedor con ajuste fino de centrado */}
+              <span
+                style={{
+                  color: forcedTextColor,
+                  fontSize: "calc(var(--cell-size) * 0.75)", // Aumentado ligeramente a 85%
+                  lineHeight: "1",
+                  display: "flex",
+                }}
+                className={clsx(
+                  "items-center justify-center w-full h-full [--cell-size:48px] sm:[--cell-size:64px]",
+                  "transform translate-y-[5%] sm:translate-y-[4%]", // <--- ESTO EMPUJA EL NÚMERO HACIA ABAJO
+                )}
+              >
+                {cellValue}
+              </span>
             </div>
           );
         })}
       </div>
 
       <div className="mt-8 text-center text-gray-500 text-sm">
-        Respuesta Instantánea (Sin ghosting)
+        Respuesta Instantánea • Máxima Visibilidad
       </div>
     </div>
   );
