@@ -1,8 +1,6 @@
 "use server";
 
-// TU CLAVE DE OPENROUTER
-const OPENROUTER_API_KEY =
-  "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";
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 export type ScanResponse =
   | { success: true; grid: number[] }
