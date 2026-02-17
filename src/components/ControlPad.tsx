@@ -176,7 +176,7 @@ export default function ControlPad({
           onClick={onHintClick}
           style={{ ...actionButtonStyle, fontSize: "16px", color: "#d97706" }} // Un color ámbar para diferenciar
         >
-          Hint
+          Hint (need notes on)
         </button>
 
         <button
