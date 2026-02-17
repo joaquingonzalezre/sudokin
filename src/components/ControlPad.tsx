@@ -1,14 +1,17 @@
 "use client";
 
 import React from "react";
-import clsx from "clsx";
 
-// Definimos qué funciones necesita este panel para funcionar
+// 1. Agregamos las nuevas funciones que recibirá el componente
 interface ControlPadProps {
   onNumberClick: (num: number) => void;
   onDeleteClick: () => void;
   onUndoClick: () => void;
   onCreateCandidates: () => void;
+  // --- NUEVOS PROPS ---
+  onHintClick: () => void; // Para el botón Hint
+  onClearCandidatesClick: () => void; // Para el botón Borrar Candt
+  // --------------------
   inputMode: "normal" | "candidate";
   setInputMode: (mode: "normal" | "candidate") => void;
   showCandidates: boolean;
@@ -20,6 +23,8 @@ export default function ControlPad({
   onDeleteClick,
   onUndoClick,
   onCreateCandidates,
+  onHintClick, // Recibimos la función
+  onClearCandidatesClick, // Recibimos la función
   inputMode,
   setInputMode,
   showCandidates,
@@ -42,7 +47,7 @@ export default function ControlPad({
     transition: "background-color 0.1s",
   };
 
-  // Estilo específico para los botones de acción
+  // Estilo para los botones de acción
   const actionButtonStyle = {
     display: "flex",
     alignItems: "center",
@@ -112,7 +117,7 @@ export default function ControlPad({
         </div>
       </div>
 
-      {/* 2. TECLADO NUMÉRICO (Grid 3x3) */}
+      {/* 2. TECLADO NUMÉRICO */}
       <div
         style={{
           display: "grid",
@@ -137,11 +142,11 @@ export default function ControlPad({
         ))}
       </div>
 
-      {/* 3. SECCIÓN ACCIONES (Grid 2x2) */}
+      {/* 3. SECCIÓN ACCIONES (Ahora tendrá 3 filas) */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
+          gridTemplateColumns: "repeat(2, 1fr)", // 2 Columnas
           gap: "10px",
         }}
       >
@@ -152,20 +157,33 @@ export default function ControlPad({
           Borrar
         </button>
 
-        {/* Botón de Visibilidad (Toggle Show Candidates) */}
         <button
           onClick={() => setShowCandidates(!showCandidates)}
-          style={{ ...actionButtonStyle, fontSize: "14px" }}
+          style={{ ...actionButtonStyle, fontSize: "16px" }}
         >
           {showCandidates ? "Ocultar Notas" : "Ver Notas"}
         </button>
 
-        {/* Botón de Calcular Candidatos */}
         <button
           onClick={onCreateCandidates}
-          style={{ ...actionButtonStyle, fontSize: "14px", color: "#2563eb" }}
+          style={{ ...actionButtonStyle, fontSize: "16px", color: "#2563eb" }}
         >
           Auto Notas
+        </button>
+
+        {/* --- NUEVOS BOTONES --- */}
+        <button
+          onClick={onHintClick}
+          style={{ ...actionButtonStyle, fontSize: "16px", color: "#d97706" }} // Un color ámbar para diferenciar
+        >
+          Hint
+        </button>
+
+        <button
+          onClick={onClearCandidatesClick}
+          style={{ ...actionButtonStyle, fontSize: "16px" }}
+        >
+          Borrar Candt
         </button>
       </div>
     </div>

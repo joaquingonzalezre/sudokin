@@ -8,6 +8,11 @@ import {
   toggleCandidate,
   calculateAllCandidates,
 } from "../logic/candidateManager";
+
+// --- IMPORTAMOS LA NUEVA LÓGICA DE PISTAS ---
+import { getHint } from "../logic/hintManager";
+// --------------------------------------------
+
 import { useGameHistory } from "../hooks/useGameHistory";
 import ControlPad from "./ControlPad";
 
@@ -57,6 +62,38 @@ const ReloadIcon = () => (
   >
     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
     <path d="M3 3v5h5" />
+  </svg>
+);
+const EyeIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+    <circle cx="12" cy="12" r="3"></circle>
+  </svg>
+);
+const EyeOffIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+    <line x1="1" y1="1" x2="23" y2="23"></line>
   </svg>
 );
 
@@ -142,8 +179,9 @@ export default function SudokuBoard() {
   const [isGameWon, setIsGameWon] = useState(false);
   const [inputMode, setInputMode] = useState<"normal" | "candidate">("normal");
   const [showCandidates, setShowCandidates] = useState(false);
+  const [autoPauseEnabled, setAutoPauseEnabled] = useState(true);
 
-  // --- LÓGICA ---
+  // --- LÓGICA DE JUEGO ---
   const handleUndo = useCallback(() => {
     if (isPaused || isGameWon) return;
     const previousState = undoLastMove();
@@ -214,7 +252,28 @@ export default function SudokuBoard() {
     saveSnapshot,
   ]);
 
+  const handleClearCandidates = useCallback(() => {
+    if (isPaused || isGameWon) return;
+    saveSnapshot(grid, candidatesGrid);
+    // IMPORTANTE: Usamos Array.from para resetear correctamente (referencias independientes)
+    const allEmptyCandidates = Array.from({ length: 81 }, () => []);
+    setCandidatesGrid(allEmptyCandidates);
+  }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot]);
+
+  // --- CONEXIÓN DE LA LÓGICA DE PISTAS ---
+  const handleHint = useCallback(() => {
+    if (isPaused || isGameWon) return;
+
+    // Llamamos a la lógica externa
+    const hintMessage = getHint(grid, candidatesGrid);
+
+    // Mostramos el diagnóstico
+    alert(hintMessage);
+  }, [isPaused, isGameWon, grid, candidatesGrid]);
+  // ---------------------------------------
+
   const handlePauseToggle = () => setIsPaused(!isPaused);
+
   const handleRestart = () => {
     const initialCleaned = INITIAL_PUZZLE.map((n) => (n === 0 ? null : n));
     setGrid(initialCleaned);
@@ -270,12 +329,12 @@ export default function SudokuBoard() {
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden) setIsPaused(true);
+      if (document.hidden && autoPauseEnabled) setIsPaused(true);
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
+  }, [autoPauseEnabled]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -354,7 +413,7 @@ export default function SudokuBoard() {
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, auto)",
-            backgroundColor: "black",
+            backgroundColor: "gray",
             gap: "4px",
             border: "4px solid black",
             userSelect: "none",
@@ -368,7 +427,7 @@ export default function SudokuBoard() {
                 display: "grid",
                 gridTemplateColumns: "repeat(3, 60px)",
                 gridTemplateRows: "repeat(3, 60px)",
-                backgroundColor: "#888888",
+                backgroundColor: "#b0b0b0",
                 gap: "1px",
               }}
             >
@@ -383,7 +442,6 @@ export default function SudokuBoard() {
                 const hasConflict = conflicts.has(globalIdx);
                 const candidates = candidatesGrid[globalIdx];
 
-                // Lógica de Peers
                 let isPeer = false;
                 let isSameValue = false;
                 if (selectedIdx !== null && !isSelected) {
@@ -400,16 +458,58 @@ export default function SudokuBoard() {
                   if (sVal !== null && val === sVal) isSameValue = true;
                 }
 
-                // === AQUÍ ESTÁ EL CAMBIO DE COLOR ===
-                // 1. Color base: Si es inicial, usamos GRIS (#e0e0e0), si no, Blanco.
-                let bgColor = isInitial ? "#e0e0e0" : "white";
+                // LÓGICA DE COLORES PERSONALIZADA (TU DISEÑO)
+                // =========================================================================
+                let bgColor = "white"; // Base
 
-                // 2. Override de estados (Error > Selección > Mismo Valor > Peer)
-                if (hasConflict && !isInitial) bgColor = "#ffcccc";
-                else if (isSelected) bgColor = "#d48200";
-                else if (isSameValue) bgColor = "#e69100";
-                else if (isPeer) bgColor = "#f9eac2"; // Peer ilumina suavemente
-                // ===================================
+                // 1. CONFLICTO/ERROR (Siempre prioridad máxima si no es inicial)
+                if (hasConflict && !isInitial) {
+                  bgColor = "#ffcccc";
+                }
+
+                // 2. CELDA SELECCIONADA (fn 1 - Parte A)
+                else if (isSelected) {
+                  if (isInitial) {
+                    bgColor = "#d48200"; // Naranja oscuro si es inicial
+                  } else {
+                    bgColor = "#fb9b00"; // Naranja brillante si es usuario
+                  }
+                }
+
+                // 3. MISMO VALOR QUE LA SELECCIONADA (fn 1 - Parte B)
+                else if (isSameValue) {
+                  if (isInitial) {
+                    bgColor = "#e69100"; // Naranja medio si el match es inicial
+                  } else {
+                    bgColor = "#fec468"; // Naranja suave si el match es usuario
+                  }
+                }
+
+                // 4. VECINOS / PEERS (fn 2)
+                else if (isPeer) {
+                  if (isInitial) {
+                    bgColor = "#d3c6af"; // Beige oscuro si es inicial
+                  } else {
+                    bgColor = "#f9eac2"; // Beige claro si es usuario/vacío
+                  }
+                }
+
+                // 5. ESTADO BASE (Para iniciales no afectadas por selección)
+                else if (isInitial) {
+                  bgColor = "#dfdfdf";
+                }
+                // =========================================================================
+
+                // Ajuste de contraste para el texto cuando el fondo es oscuro
+                let textColor = hasConflict
+                  ? "red"
+                  : !isInitial
+                    ? "#121212"
+                    : "#121212";
+                // Si la celda está seleccionada y es inicial (fondo oscuro), ponemos letra blanca para leer mejor
+                if (isSelected && isInitial) textColor = "#121212";
+                // Si la celda es del mismo valor inicial (fondo medio oscuro), quizás negro esté bien, o blanco.
+                // Lo dejamos por defecto negro/azul salvo en selección directa.
 
                 return (
                   <div
@@ -425,11 +525,7 @@ export default function SudokuBoard() {
                       fontFamily: "Arial, sans-serif",
                       fontSize: "34px",
                       fontWeight: "700",
-                      color: hasConflict
-                        ? "red"
-                        : !isInitial
-                          ? "#2563eb"
-                          : "#121212",
+                      color: textColor,
                       cursor: "pointer",
                       position: "relative",
                     }}
@@ -471,13 +567,15 @@ export default function SudokuBoard() {
           ))}
         </div>
 
-        {/* PANEL CONTROL */}
+        {/* PANEL DE CONTROL */}
         <div className="flex flex-col gap-4">
           <ControlPad
             onNumberClick={handleInput}
             onDeleteClick={handleDelete}
             onUndoClick={handleUndo}
             onCreateCandidates={handleAutoCandidates}
+            onHintClick={handleHint}
+            onClearCandidatesClick={handleClearCandidates}
             inputMode={inputMode}
             setInputMode={setInputMode}
             showCandidates={showCandidates}
@@ -519,6 +617,29 @@ export default function SudokuBoard() {
                 title="Pausar Juego"
               >
                 {isPaused ? <PlayIcon /> : <PauseIcon />}
+              </button>
+
+              {/* Botón Auto-Pausa */}
+              <button
+                onClick={() => setAutoPauseEnabled(!autoPauseEnabled)}
+                style={{
+                  padding: "8px",
+                  borderRadius: "50%",
+                  border: "none",
+                  backgroundColor: autoPauseEnabled ? "#e0e0e0" : "#ccc",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: autoPauseEnabled ? "#333" : "#777",
+                }}
+                title={
+                  autoPauseEnabled
+                    ? "Auto-Pausa Activada"
+                    : "Auto-Pausa Desactivada"
+                }
+              >
+                {autoPauseEnabled ? <EyeIcon /> : <EyeOffIcon />}
               </button>
             </div>
             {conflicts.size > 0 && (
