@@ -177,6 +177,7 @@ type VisualHintType = {
   indexOrValue: number | null;
 };
 
+// --- FUNCIÓN DE INGENIERÍA: CORTADORA OPTIMIZADA CON GUÍAS ---
 const sliceImageInto9 = (file: File): Promise<string[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -186,42 +187,61 @@ const sliceImageInto9 = (file: File): Promise<string[]> => {
       img.src = event.target?.result as string;
       img.onload = () => {
         const pieces: string[] = [];
-        // Cortamos un poquito más grande para que se vean los bordes negros (overlap)
-        const w = img.width / 3;
-        const h = img.height / 3;
+
+        // 1. Calcular tamaño de recorte original
+        const srcW = img.width / 3;
+        const srcH = img.height / 3;
+
+        // 2. Definir tamaño de salida OPTIMIZADO (Evita error 400 por payload gigante)
+        // Reducimos cada "cajita" a máximo 400px. Suficiente para ver un número.
+        const MAX_SIZE = 400;
+        const scale = Math.min(1, MAX_SIZE / srcW);
+        const destW = srcW * scale;
+        const destH = srcH * scale;
 
         for (let row = 0; row < 3; row++) {
           for (let col = 0; col < 3; col++) {
             const canvas = document.createElement("canvas");
-            canvas.width = w;
-            canvas.height = h;
+            canvas.width = destW;
+            canvas.height = destH;
             const ctx = canvas.getContext("2d");
             if (ctx) {
-              // 1. Dibujar la imagen del sector
-              ctx.drawImage(img, col * w, row * h, w, h, 0, 0, w, h);
+              // A. Dibujar la imagen recortada y escalada
+              ctx.drawImage(
+                img,
+                col * srcW,
+                row * srcH,
+                srcW,
+                srcH,
+                0,
+                0,
+                destW,
+                destH,
+              );
 
-              // 2. DIBUJAR GUÍAS VISUALES (La Magia) 🪄
-              // Dibujamos líneas semitransparentes para dividir este sector de 3x3 en 9 celdas
-              ctx.strokeStyle = "rgba(255, 0, 0, 0.5)"; // Líneas Rojas
-              ctx.lineWidth = Math.max(2, w / 100); // Grosor dinámico
+              // B. DIBUJAR GUÍAS VISUALES (Líneas Rojas) 🪄
+              // Ayuda a la IA a delimitar las celdas
+              ctx.strokeStyle = "rgba(255, 0, 0, 0.6)";
+              ctx.lineWidth = 3;
 
-              // Líneas Verticales (a 1/3 y 2/3 del ancho)
+              // Líneas Verticales
               ctx.beginPath();
-              ctx.moveTo(w / 3, 0);
-              ctx.lineTo(w / 3, h);
-              ctx.moveTo((w / 3) * 2, 0);
-              ctx.lineTo((w / 3) * 2, h);
+              ctx.moveTo(destW / 3, 0);
+              ctx.lineTo(destW / 3, destH);
+              ctx.moveTo((destW / 3) * 2, 0);
+              ctx.lineTo((destW / 3) * 2, destH);
               ctx.stroke();
 
-              // Líneas Horizontales (a 1/3 y 2/3 del alto)
+              // Líneas Horizontales
               ctx.beginPath();
-              ctx.moveTo(0, h / 3);
-              ctx.lineTo(w, h / 3);
-              ctx.moveTo(0, (h / 3) * 2);
-              ctx.lineTo(w, (h / 3) * 2);
+              ctx.moveTo(0, destH / 3);
+              ctx.lineTo(destW, destH / 3);
+              ctx.moveTo(0, (destH / 3) * 2);
+              ctx.lineTo(destW, (destH / 3) * 2);
               ctx.stroke();
 
-              pieces.push(canvas.toDataURL("image/jpeg", 0.9));
+              // C. Exportar comprimido (0.7 quality)
+              pieces.push(canvas.toDataURL("image/jpeg", 0.7));
             }
           }
         }
@@ -290,8 +310,8 @@ export default function SudokuBoard() {
     setIsPaused(true);
 
     try {
-      // 1. CORTAMOS LA IMAGEN EN 9 PARTES (Estrategia 3x3)
-      console.log("✂️ Cortando imagen en 9 sectores...");
+      // 1. CORTAMOS Y OPTIMIZAMOS (Estrategia 3x3 + Guías)
+      console.log("✂️ Cortando imagen en 9 sectores con guías...");
       const pieces = await sliceImageInto9(file);
 
       // 2. ENVIAMOS LAS 9 PIEZAS AL SERVIDOR

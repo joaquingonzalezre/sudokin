@@ -9,13 +9,13 @@ export type ScanResponse =
 export async function scanSudokuImage(
   imagesBase64: string[],
 ): Promise<ScanResponse> {
-  console.log(`--> [Server Action] Escaneo 3x3 con COORDENADAS RELATIVAS...`);
+  console.log(`--> [Server Action] Escaneo 3x3 con GUÍAS VISUALES...`);
 
   try {
     const messageContent: any[] = [
       {
         type: "text",
-        text: `You are processing a Sudoku split into 9 sub-images.
+        text: `You are processing a Sudoku split into 9 sub-images (3x3 boxes).
 The images are ordered normally from Top-Left to Bottom-Right.
 
 CRITICAL VISUAL AID:
@@ -23,20 +23,30 @@ Each image has RED GRID LINES overlayed on it.
 These red lines divide the image into exactly 9 cells (3x3).
 Use these red lines to determine exactly which cell a number belongs to.
 
-TASK:
-1. Look at the 3x3 grid defined by the red lines.
-2. Identify the number in each of the 9 cells.
-3. If a cell formed by red lines is empty, return 0.
-4. If a number is on the edge, assign it to the cell where its center lies.
+TASK FOR EACH IMAGE:
+1. Visualize the small 3x3 grid defined by the RED LINES.
+2. Identify visible digits (1-9).
+3. Report the position of each digit using LOCAL coordinates (row 0-2, col 0-2) relative to the red lines.
+4. Ignore empty cells.
 
-OUTPUT:
-Return the "boxes" object as before (array of 9 arrays with local coordinates r,c,v).
-Example: { "boxes": [[{"r":0,"c":0,"v":5}, ...], ...] }`,
+OUTPUT FORMAT:
+Return a JSON object with a key "boxes".
+"boxes" is an array of 9 arrays (one for each image).
+Each inner array contains objects: { "r": 0-2, "c": 0-2, "v": 1-9 }.
+
+Example for a box with '5' in the center:
+{
+  "boxes": [
+    [ { "r": 1, "c": 1, "v": 5 } ], 
+    ... (8 more arrays)
+  ]
+}`,
       },
     ];
 
     // Adjuntamos las 9 imágenes
     imagesBase64.forEach((img) => {
+      // Aseguramos que el base64 esté limpio para el payload
       const cleanBase64 = img.includes("base64,")
         ? img.split("base64,")[1]
         : img;
@@ -65,7 +75,8 @@ Example: { "boxes": [[{"r":0,"c":0,"v":5}, ...], ...] }`,
     );
 
     if (!response.ok) {
-      throw new Error(`OpenRouter Error: ${response.status}`);
+      const err = await response.text();
+      throw new Error(`OpenRouter Error (${response.status}): ${err}`);
     }
 
     const data = await response.json();
