@@ -6,37 +6,47 @@ export type ScanResponse =
   | { success: true; grid: number[] }
   | { success: false; error: string };
 
-// CAMBIO IMPORTANTE: Ahora aceptamos un array de strings (las 9 fotos)
 export async function scanSudokuImage(
   imagesBase64: string[],
 ): Promise<ScanResponse> {
   console.log(
-    `--> [Server Action] Iniciando escaneo MULTI-IMAGEN (${imagesBase64.length} sectores)...`,
+    `--> [Server Action] Iniciando escaneo MULTI-IMAGEN (${imagesBase64.length} sectores) con Mapeo Correcto...`,
   );
 
   try {
-    // Construimos el contenido del mensaje.
-    // 1. Instrucción de Texto
+    // 1. Preparamos el mensaje para GPT-4o
+    // Le decimos explícitamente que son 9 sub-grids y que queremos la respuesta estructurada por cajas.
     const messageContent: any[] = [
       {
         type: "text",
         text: `You are a precision Sudoku OCR engine. 
 You are receiving 9 separate images.
-Each image represents one of the 9 "boxes" (3x3 subgrids) of a standard Sudoku.
-The images are ordered normally: Top-Left, Top-Center, Top-Right, Middle-Left, Middle-Center, etc.
+Each image represents one of the 9 "3x3 boxes" of a standard Sudoku.
+The images are ordered: 
+Box 1 (Top-Left), Box 2 (Top-Center), Box 3 (Top-Right),
+Box 4 (Middle-Left), Box 5 (Center), ... etc.
 
 TASK:
-1. Read the digits from each of the 9 images in order.
-2. Concatenate them to form the full 81-number Sudoku grid.
-3. Use 0 for empty cells.
+1. Identify the 9 digits in each image (use 0 for empty cells).
+2. Be careful with edges: only read numbers that belong to the current 3x3 box.
 
 OUTPUT FORMAT:
-Return a JSON object with a single key "grid" containing a flat array of 81 integers.
-Example: { "grid": [5, 3, 0, 0, 7, ...] }`,
+Return a JSON object with a key "boxes".
+"boxes" must be an array of 9 arrays.
+Each inner array must contain EXACTLY 9 integers representing that box's 3x3 grid (read left-to-right, top-to-bottom).
+
+Example:
+{
+  "boxes": [
+    [5, 3, 0, 6, 0, 0, 0, 9, 8], // Content of Box 1
+    [0, 7, 0, 1, 9, 5, 0, 0, 0], // Content of Box 2
+    ... (7 more arrays)
+  ]
+}`,
       },
     ];
 
-    // 2. Adjuntamos las 9 imágenes en orden
+    // 2. Adjuntamos las 9 imágenes al mensaje
     imagesBase64.forEach((img) => {
       const cleanBase64 = img.includes("base64,")
         ? img.split("base64,")[1]
@@ -45,11 +55,11 @@ Example: { "grid": [5, 3, 0, 0, 7, ...] }`,
         type: "image_url",
         image_url: {
           url: `data:image/jpeg;base64,${cleanBase64}`,
-          // detail: "high" // Opcional: fuerza alta resolución si fuera necesario, pero suele ser automático
         },
       });
     });
 
+    // 3. Enviamos la petición
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
       {
@@ -58,10 +68,10 @@ Example: { "grid": [5, 3, 0, 0, 7, ...] }`,
           Authorization: `Bearer ${OPENROUTER_API_KEY}`,
           "Content-Type": "application/json",
           "HTTP-Referer": "http://localhost:3000",
-          "X-Title": "Sudokin Multi-View",
+          "X-Title": "Sudokin Pro Multi-View",
         },
         body: JSON.stringify({
-          model: "openai/gpt-4o", // Usamos el Ferrari
+          model: "openai/gpt-4o", // Usamos el mejor modelo disponible
           response_format: { type: "json_object" },
           messages: [
             {
@@ -83,9 +93,11 @@ Example: { "grid": [5, 3, 0, 0, 7, ...] }`,
     const data = await response.json();
     const content = data.choices[0]?.message?.content || "";
 
-    console.log(`✅ Respuesta recibida.`);
+    console.log(
+      `✅ Respuesta recibida. Iniciando reconstrucción matemática...`,
+    );
 
-    // Limpieza estándar del JSON
+    // 4. Limpieza del JSON
     let cleanText = content
       .replace(/```json/g, "")
       .replace(/```/g, "")
@@ -97,19 +109,74 @@ Example: { "grid": [5, 3, 0, 0, 7, ...] }`,
     }
 
     const parsed = JSON.parse(cleanText);
-    const numbers = parsed.grid || parsed.numbers;
 
-    // Validación final
-    if (!numbers || !Array.isArray(numbers) || numbers.length !== 81) {
-      console.error("JSON Recibido:", JSON.stringify(parsed));
-      throw new Error(
-        `La IA leyó ${numbers?.length || 0} números. Se requieren exactamente 81.`,
-      );
+    // Obtenemos las cajas. Si falló el formato, intentamos leer 'grid' plano
+    let boxes = parsed.boxes;
+
+    // Fallback: Si la IA devolvió un array plano de 81, lo cortamos nosotros en 9 cajas
+    if (!boxes && parsed.grid && parsed.grid.length === 81) {
+      console.warn("⚠️ La IA devolvió formato plano. Cortando manualmente...");
+      boxes = [];
+      for (let i = 0; i < 9; i++) {
+        boxes.push(parsed.grid.slice(i * 9, (i + 1) * 9));
+      }
     }
 
-    return { success: true, grid: numbers };
+    // --- RECONSTRUCCIÓN MATEMÁTICA DEL TABLERO ---
+    // Aquí ocurre la magia para arreglar el problema de los números desplazados.
+
+    const finalGrid = Array(81).fill(0);
+    let filledCount = 0;
+
+    if (Array.isArray(boxes) && boxes.length === 9) {
+      boxes.forEach((boxNumbers: number[], boxIndex: number) => {
+        // boxIndex va de 0 a 8 (Las 9 cajas grandes del sudoku)
+
+        // Calculamos la esquina superior izquierda de ESTA caja en el tablero global
+        // Fila inicial de la caja: 0, 3 o 6
+        const startBoxRow = Math.floor(boxIndex / 3) * 3;
+        // Columna inicial de la caja: 0, 3 o 6
+        const startBoxCol = (boxIndex % 3) * 3;
+
+        // Ahora recorremos los 9 números DENTRO de esta caja pequeña
+        if (Array.isArray(boxNumbers)) {
+          boxNumbers.forEach((num, cellInBoxIndex) => {
+            // cellInBoxIndex va de 0 a 8
+
+            // Calculamos la posición relativa dentro de la caja (0, 1, 2)
+            const rowInBox = Math.floor(cellInBoxIndex / 3);
+            const colInBox = cellInBoxIndex % 3;
+
+            // Calculamos la Coordenada Global Exacta
+            const globalRow = startBoxRow + rowInBox;
+            const globalCol = startBoxCol + colInBox;
+
+            // Convertimos a índice plano (0-80)
+            const finalIndex = globalRow * 9 + globalCol;
+
+            if (finalIndex >= 0 && finalIndex < 81) {
+              finalGrid[finalIndex] = num;
+              if (num !== 0) filledCount++;
+            }
+          });
+        }
+      });
+    } else {
+      throw new Error("La IA no devolvió las 9 cajas esperadas.");
+    }
+
+    console.log(
+      `--> Reconstrucción completada. Números detectados: ${filledCount}`,
+    );
+
+    // Validación final
+    if (filledCount < 10) {
+      throw new Error("Se detectaron muy pocos números. Verifica la imagen.");
+    }
+
+    return { success: true, grid: finalGrid };
   } catch (error: any) {
-    console.error("❌ Error Multi-Imagen:", error.message);
+    console.error("❌ Error Pro:", error.message);
     return { success: false, error: `Error: ${error.message}` };
   }
 }
