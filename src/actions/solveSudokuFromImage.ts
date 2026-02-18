@@ -6,17 +6,49 @@ export type ScanResponse =
   | { success: true; grid: number[] }
   | { success: false; error: string };
 
+// CAMBIO IMPORTANTE: Ahora aceptamos un array de strings (las 9 fotos)
 export async function scanSudokuImage(
-  imageBase64: string,
+  imagesBase64: string[],
 ): Promise<ScanResponse> {
   console.log(
-    "--> [Server Action] Iniciando escaneo ULTRAPRO (GPT-4o + Coordenadas)...",
+    `--> [Server Action] Iniciando escaneo MULTI-IMAGEN (${imagesBase64.length} sectores)...`,
   );
 
   try {
-    const base64Data = imageBase64.includes("base64,")
-      ? imageBase64.split("base64,")[1]
-      : imageBase64;
+    // Construimos el contenido del mensaje.
+    // 1. Instrucción de Texto
+    const messageContent: any[] = [
+      {
+        type: "text",
+        text: `You are a precision Sudoku OCR engine. 
+You are receiving 9 separate images.
+Each image represents one of the 9 "boxes" (3x3 subgrids) of a standard Sudoku.
+The images are ordered normally: Top-Left, Top-Center, Top-Right, Middle-Left, Middle-Center, etc.
+
+TASK:
+1. Read the digits from each of the 9 images in order.
+2. Concatenate them to form the full 81-number Sudoku grid.
+3. Use 0 for empty cells.
+
+OUTPUT FORMAT:
+Return a JSON object with a single key "grid" containing a flat array of 81 integers.
+Example: { "grid": [5, 3, 0, 0, 7, ...] }`,
+      },
+    ];
+
+    // 2. Adjuntamos las 9 imágenes en orden
+    imagesBase64.forEach((img) => {
+      const cleanBase64 = img.includes("base64,")
+        ? img.split("base64,")[1]
+        : img;
+      messageContent.push({
+        type: "image_url",
+        image_url: {
+          url: `data:image/jpeg;base64,${cleanBase64}`,
+          // detail: "high" // Opcional: fuerza alta resolución si fuera necesario, pero suele ser automático
+        },
+      });
+    });
 
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
@@ -26,41 +58,15 @@ export async function scanSudokuImage(
           Authorization: `Bearer ${OPENROUTER_API_KEY}`,
           "Content-Type": "application/json",
           "HTTP-Referer": "http://localhost:3000",
-          "X-Title": "Sudokin Ultra",
+          "X-Title": "Sudokin Multi-View",
         },
         body: JSON.stringify({
-          // 1. CAMBIO DE MOTOR: Usamos el "Ferrari" real (sin 'mini')
-          // Esto consumirá un poco más de saldo, pero la precisión es máxima.
-          model: "openai/gpt-4o",
-
+          model: "openai/gpt-4o", // Usamos el Ferrari
           response_format: { type: "json_object" },
           messages: [
             {
               role: "user",
-              content: [
-                {
-                  type: "text",
-                  // 2. CAMBIO DE LÓGICA: Pedimos COORDENADAS (r, c, v)
-                  // Esto evita que se "salte" los ceros y desplace los números.
-                  text: `You are a visionary Sudoku OCR engine. 
-Task: Identify ONLY the visible digits (1-9) in the grid.
-Output Format: A JSON object with a key "cells".
-"cells" must be an array of objects: { "r": row_index (0-8), "c": col_index (0-8), "v": value (1-9) }
-
-Rules:
-- Row 0 is the top row. Row 8 is the bottom.
-- Col 0 is the left column. Col 8 is the right.
-- IGNORE empty cells. Do not guess.
-- Example: If top-left is 5, output { "r": 0, "c": 0, "v": 5 }.
-- Double check alignment. Accuracy is more important than speed.`,
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:image/jpeg;base64,${base64Data}`,
-                  },
-                },
-              ],
+              content: messageContent,
             },
           ],
         }),
@@ -77,9 +83,9 @@ Rules:
     const data = await response.json();
     const content = data.choices[0]?.message?.content || "";
 
-    console.log(`✅ Respuesta recibida. Reconstruyendo tablero...`);
+    console.log(`✅ Respuesta recibida.`);
 
-    // Limpieza estándar
+    // Limpieza estándar del JSON
     let cleanText = content
       .replace(/```json/g, "")
       .replace(/```/g, "")
@@ -91,40 +97,19 @@ Rules:
     }
 
     const parsed = JSON.parse(cleanText);
-    const cells = parsed.cells || parsed.digits || [];
+    const numbers = parsed.grid || parsed.numbers;
 
-    // --- RECONSTRUCCIÓN INFALIBLE ---
-    // 1. Creamos un tablero vacío de 81 ceros (limpio)
-    const finalGrid = Array(81).fill(0);
-
-    // 2. Insertamos quirúrgicamente cada número en su lugar exacto
-    let filledCount = 0;
-    if (Array.isArray(cells)) {
-      cells.forEach((item: any) => {
-        const r = Number(item.r);
-        const c = Number(item.c);
-        const v = Number(item.v);
-
-        // Solo aceptamos coordenadas válidas
-        if (r >= 0 && r <= 8 && c >= 0 && c <= 8 && v >= 1 && v <= 9) {
-          const index = r * 9 + c;
-          finalGrid[index] = v;
-          filledCount++;
-        }
-      });
-    }
-
-    console.log(`--> Tablero reconstruido con ${filledCount} números.`);
-
-    if (filledCount < 10) {
+    // Validación final
+    if (!numbers || !Array.isArray(numbers) || numbers.length !== 81) {
+      console.error("JSON Recibido:", JSON.stringify(parsed));
       throw new Error(
-        "La imagen parece borrosa o no es un Sudoku. Detecté muy pocos números.",
+        `La IA leyó ${numbers?.length || 0} números. Se requieren exactamente 81.`,
       );
     }
 
-    return { success: true, grid: finalGrid };
+    return { success: true, grid: numbers };
   } catch (error: any) {
-    console.error("❌ Error Ultra:", error.message);
+    console.error("❌ Error Multi-Imagen:", error.message);
     return { success: false, error: `Error: ${error.message}` };
   }
 }

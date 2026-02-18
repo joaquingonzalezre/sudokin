@@ -177,6 +177,42 @@ type VisualHintType = {
   indexOrValue: number | null;
 };
 
+// --- FUNCIÓN DE INGENIERÍA: CORTADORA DE IMÁGENES ---
+const sliceImageInto9 = (file: File): Promise<string[]> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const pieces: string[] = [];
+        const w = img.width / 3;
+        const h = img.height / 3;
+
+        // Recorremos 3x3 cuadrantes
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 3; col++) {
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              // Recorte quirúrgico: sx, sy, sw, sh -> dx, dy, dw, dh
+              ctx.drawImage(img, col * w, row * h, w, h, 0, 0, w, h);
+              // Calidad 0.85 para mantener nitidez sin explotar tokens
+              pieces.push(canvas.toDataURL("image/jpeg", 0.85));
+            }
+          }
+        }
+        resolve(pieces); // Retorna array de 9 strings base64
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+};
+
 export default function SudokuBoard() {
   const activePuzzleIndex = 0;
   const currentPuzzleData = sudokuPuzzles[activePuzzleIndex];
@@ -226,35 +262,6 @@ export default function SudokuBoard() {
     }, 3000);
   };
 
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const MAX_WIDTH = 1000;
-          let width = img.width;
-          let height = img.height;
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx?.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-          resolve(dataUrl);
-        };
-        img.onerror = (err) => reject(err);
-      };
-      reader.onerror = (err) => reject(err);
-    });
-  };
-
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -263,9 +270,12 @@ export default function SudokuBoard() {
     setIsPaused(true);
 
     try {
-      const compressedBase64 = await compressImage(file);
+      // 1. CORTAMOS LA IMAGEN EN 9 PARTES (Estrategia 3x3)
+      console.log("✂️ Cortando imagen en 9 sectores...");
+      const pieces = await sliceImageInto9(file);
 
-      const result: ScanResponse = await scanSudokuImage(compressedBase64);
+      // 2. ENVIAMOS LAS 9 PIEZAS AL SERVIDOR
+      const result: ScanResponse = await scanSudokuImage(pieces);
 
       if (result.success) {
         const newPuzzleNumbers = result.grid;
@@ -275,12 +285,10 @@ export default function SudokuBoard() {
         );
         setGrid(newGrid);
         setCandidatesGrid(generateEmptyCandidates(newGrid));
-
         setTime(0);
         setHintState({ active: false, level: 0, data: null });
         setIsGameWon(false);
         setVisualHint({ mode: "none", indexOrValue: null });
-
         alert("¡Sudoku escaneado con éxito!");
       } else {
         console.error("Server Error:", result.error);
@@ -296,7 +304,7 @@ export default function SudokuBoard() {
     }
   };
 
-  // --- FUNCIONES DE JUEGO ---
+  // --- RESTO DE FUNCIONES DEL JUEGO (Sin cambios) ---
   const handleUndo = useCallback(() => {
     if (isPaused || isGameWon) return;
     const previousState = undoLastMove();
@@ -377,8 +385,7 @@ export default function SudokuBoard() {
   const handleClearCandidates = useCallback(() => {
     if (isPaused || isGameWon) return;
     saveSnapshot(grid, candidatesGrid);
-    const allEmptyCandidates = Array.from({ length: 81 }, () => []);
-    setCandidatesGrid(allEmptyCandidates);
+    setCandidatesGrid(Array.from({ length: 81 }, () => []));
     setHintState({ active: false, level: 0, data: null });
   }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot]);
 
@@ -412,7 +419,7 @@ export default function SudokuBoard() {
       currentData = getHint(grid, candidatesGrid);
       nextLevel = 1;
       if (currentData.type === "none") {
-        alert("🤔 No veo jugadas lógicas simples.");
+        alert("🤔 No veo jugadas lógicas.");
         return;
       }
       if (currentData.type === "error") {
@@ -442,8 +449,7 @@ export default function SudokuBoard() {
           triggerVisualHint("row", rowIdx);
           break;
         case 3:
-          const boxId = boxRow * 3 + boxCol;
-          triggerVisualHint("box", boxId);
+          triggerVisualHint("box", boxRow * 3 + boxCol);
           break;
         case 4:
           triggerVisualHint("cell", currentData.cellIdx);
@@ -485,8 +491,7 @@ export default function SudokuBoard() {
 
   useEffect(() => {
     const isFull = grid.every((cell) => cell !== null);
-    const hasNoConflicts = conflicts.size === 0;
-    if (isFull && hasNoConflicts && !isGameWon) {
+    if (isFull && conflicts.size === 0 && !isGameWon) {
       setIsGameWon(true);
       setIsRunning(false);
     }
@@ -647,9 +652,10 @@ export default function SudokuBoard() {
                   )
                     isVisualHintActive = true;
                   else if (visualHint.mode === "box") {
-                    const myBox =
-                      Math.floor(globalRow / 3) * 3 + Math.floor(globalCol / 3);
-                    if (visualHint.indexOrValue === myBox)
+                    if (
+                      visualHint.indexOrValue ===
+                      Math.floor(globalRow / 3) * 3 + Math.floor(globalCol / 3)
+                    )
                       isVisualHintActive = true;
                   } else if (visualHint.mode === "value") {
                     if (val === visualHint.indexOrValue)
@@ -663,12 +669,6 @@ export default function SudokuBoard() {
                 else if (isSameValue) bgColor = "#fbbf24";
                 else if (isPeer) bgColor = isInitial ? "#c8d6e5" : "#f1f5f9";
                 else if (isInitial) bgColor = "#e0e0e0";
-                let textColor = hasConflict
-                  ? "red"
-                  : !isInitial
-                    ? "#2563eb"
-                    : "#121212";
-                if (isSelected && isInitial) textColor = "white";
 
                 return (
                   <div
@@ -684,7 +684,11 @@ export default function SudokuBoard() {
                       fontFamily: "Arial, sans-serif",
                       fontSize: "34px",
                       fontWeight: "700",
-                      color: textColor,
+                      color: hasConflict
+                        ? "red"
+                        : !isInitial
+                          ? "#2563eb"
+                          : "#121212",
                       cursor: "pointer",
                       position: "relative",
                       transition: "background-color 0.2s",
@@ -726,6 +730,7 @@ export default function SudokuBoard() {
             </div>
           ))}
         </div>
+
         {/* PANEL DE CONTROL */}
         <div className="flex flex-col gap-4">
           <ControlPad
@@ -740,149 +745,77 @@ export default function SudokuBoard() {
             showCandidates={showCandidates}
             setShowCandidates={setShowCandidates}
           />
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "10px",
-              marginTop: "20px",
-              fontFamily: "Arial, sans-serif",
-              color: "#666",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                fontSize: "18px",
-                fontWeight: "bold",
-              }}
-            >
+
+          <div className="flex flex-col items-center gap-4 mt-5 font-sans text-gray-500">
+            <div className="flex items-center gap-3 text-lg font-bold">
               <span>{formatTime(time)}</span>
               <button
                 onClick={handlePauseToggle}
-                style={{
-                  padding: "8px",
-                  borderRadius: "50%",
-                  border: "none",
-                  backgroundColor: "#e0e0e0",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-                title="Pausar Juego"
+                className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
               >
                 {isPaused ? <PlayIcon /> : <PauseIcon />}
               </button>
               <button
                 onClick={() => setAutoPauseEnabled(!autoPauseEnabled)}
-                style={{
-                  padding: "8px",
-                  borderRadius: "50%",
-                  border: "none",
-                  backgroundColor: autoPauseEnabled ? "#e0e0e0" : "#ccc",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: autoPauseEnabled ? "#333" : "#777",
-                }}
-                title={
-                  autoPauseEnabled
-                    ? "Auto-Pausa Activada"
-                    : "Auto-Pausa Desactivada"
-                }
+                className={`p-2 rounded-full ${autoPauseEnabled ? "bg-gray-200" : "bg-gray-400"}`}
               >
                 {autoPauseEnabled ? <EyeIcon /> : <EyeOffIcon />}
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
+                className={`p-2 rounded-full ${isScanning ? "bg-yellow-300 animate-pulse" : "bg-gray-200"}`}
                 disabled={isScanning}
-                style={{
-                  padding: "8px",
-                  borderRadius: "50%",
-                  border: "none",
-                  backgroundColor: isScanning ? "#fcd34d" : "#e0e0e0",
-                  cursor: isScanning ? "wait" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  animation: isScanning ? "pulse 1s infinite" : "none",
-                }}
                 title="Escanear Sudoku"
               >
                 <CameraIcon />
               </button>
             </div>
-            {conflicts.size > 0 && (
-              <div style={{ color: "red", fontWeight: "bold" }}>
-                ⚠️ Errores detectados
-              </div>
-            )}
-            {isScanning && (
-              <div style={{ color: "#d97706", fontWeight: "bold" }}>
-                Analizando imagen... 🤖
-              </div>
-            )}
+
+            {/* SECCIÓN DE HINT */}
             {hintState.active && (
-              <div
-                style={{
-                  fontSize: "14px",
-                  color: "#d97706",
-                  fontWeight: "bold",
-                  animation: "fadeIn 0.5s",
-                  backgroundColor: "#fffbeb",
-                  padding: "5px 10px",
-                  borderRadius: "5px",
-                  border: "1px solid #fcd34d",
-                }}
-              >
-                {hintState.data?.levels[hintState.level as 1 | 2 | 3 | 4 | 5]}
+              <div className="mt-2 mx-auto w-full max-w-[320px] text-center animate-in fade-in duration-500">
+                <p className="bg-yellow-50 border-2 border-yellow-200 text-yellow-800 text-xs font-bold px-4 py-3 rounded-xl shadow-sm break-words whitespace-normal leading-relaxed">
+                  {hintState.data?.levels[hintState.level as 1 | 2 | 3 | 4 | 5]}
+                </p>
+              </div>
+            )}
+
+            {isScanning && (
+              <div className="text-orange-600 font-bold">
+                Analizando 9 sectores... 🤖
+              </div>
+            )}
+            {conflicts.size > 0 && (
+              <div className="text-red-500 font-bold">
+                ⚠️ Errores detectados
               </div>
             )}
           </div>
         </div>
       </div>
+
       {isPaused && !isGameWon && (
         <Modal
           title={isScanning ? "Procesando Imagen..." : "Juego en Pausa"}
           icon={
-            <div style={{ transform: "scale(2)", color: "#666" }}>
+            <div className="scale-150 text-gray-500">
               {isScanning ? <CameraIcon /> : <PauseIcon />}
             </div>
           }
         >
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "15px" }}
-          >
+          <div className="flex flex-col gap-4">
             {isScanning ? (
-              <p style={{ fontSize: "18px", color: "#666" }}>
-                La IA está leyendo tu sudoku...
+              <p className="text-lg text-gray-500">
+                La IA está leyendo tu sudoku sector por sector...
               </p>
             ) : (
               <>
-                <p style={{ fontSize: "18px", color: "#666" }}>
+                <p className="text-lg text-gray-500">
                   Tu tiempo actual: <strong>{formatTime(time)}</strong>
                 </p>
                 <button
                   onClick={handlePauseToggle}
-                  style={{
-                    padding: "15px",
-                    borderRadius: "10px",
-                    border: "none",
-                    backgroundColor: "black",
-                    color: "white",
-                    fontSize: "18px",
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "10px",
-                  }}
+                  className="flex items-center justify-center gap-2 p-4 bg-black text-white rounded-xl font-bold text-lg"
                 >
                   <PlayIcon /> Reanudar
                 </button>
@@ -891,56 +824,22 @@ export default function SudokuBoard() {
           </div>
         </Modal>
       )}
+
       {isGameWon && (
-        <Modal
-          title="¡Felicidades!"
-          icon={<div style={{ fontSize: "60px" }}>🏆</div>}
-        >
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "15px" }}
-          >
-            <p style={{ fontSize: "18px", color: "#666" }}>
-              ¡Has completado el Sudoku!
-            </p>
-            <div
-              style={{
-                backgroundColor: "#f0f0f0",
-                padding: "15px",
-                borderRadius: "10px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "12px",
-                  textTransform: "uppercase",
-                  color: "#666",
-                  fontWeight: "bold",
-                }}
-              >
+        <Modal title="¡Felicidades!" icon={<div className="text-6xl">🏆</div>}>
+          <div className="flex flex-col gap-4">
+            <p className="text-lg text-gray-500">¡Has completado el Sudoku!</p>
+            <div className="bg-gray-100 p-4 rounded-xl">
+              <div className="text-xs uppercase text-gray-500 font-bold">
                 Tiempo Final
               </div>
-              <div
-                style={{ fontSize: "40px", fontWeight: "900", color: "black" }}
-              >
+              <div className="text-4xl font-black text-black">
                 {formatTime(time)}
               </div>
             </div>
             <button
               onClick={handleRestart}
-              style={{
-                padding: "15px",
-                borderRadius: "10px",
-                border: "none",
-                backgroundColor: "black",
-                color: "white",
-                fontSize: "18px",
-                fontWeight: "bold",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "10px",
-              }}
+              className="flex items-center justify-center gap-2 p-4 bg-black text-white rounded-xl font-bold text-lg"
             >
               <ReloadIcon /> Jugar otra vez
             </button>
