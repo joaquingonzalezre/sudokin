@@ -2,20 +2,18 @@
 
 import React from "react";
 
-// 1. Agregamos las nuevas funciones que recibirá el componente
 interface ControlPadProps {
   onNumberClick: (num: number) => void;
   onDeleteClick: () => void;
   onUndoClick: () => void;
   onCreateCandidates: () => void;
-  // --- NUEVOS PROPS ---
-  onHintClick: () => void; // Para el botón Hint
-  onClearCandidatesClick: () => void; // Para el botón Borrar Candt
-  // --------------------
+  onClearCandidatesClick: () => void;
   inputMode: "normal" | "candidate";
-  setInputMode: (mode: "normal" | "candidate") => void;
+  setInputMode: React.Dispatch<React.SetStateAction<"normal" | "candidate">>;
   showCandidates: boolean;
-  setShowCandidates: (show: boolean) => void;
+  setShowCandidates: React.Dispatch<React.SetStateAction<boolean>>;
+  smartNotesMode: boolean;
+  onToggleSmartNotes: () => void;
 }
 
 export default function ControlPad({
@@ -23,167 +21,166 @@ export default function ControlPad({
   onDeleteClick,
   onUndoClick,
   onCreateCandidates,
-  onHintClick, // Recibimos la función
-  onClearCandidatesClick, // Recibimos la función
+  onClearCandidatesClick,
   inputMode,
   setInputMode,
   showCandidates,
   setShowCandidates,
+  smartNotesMode,
+  onToggleSmartNotes,
 }: ControlPadProps) {
-  // Estilo base para los números
-  const numButtonStyle = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+  // Estilo para los números
+  const numberBtnStyle = {
     backgroundColor: "white",
-    border: "1px solid #ccc",
-    fontSize: "32px",
-    fontFamily: "Arial, sans-serif",
-    color: "#333",
+    border: "1px solid #d1d5db",
+    borderRadius: "8px",
+    fontSize: "24px",
+    color: "#1f2937",
+    height: "60px",
     cursor: "pointer",
-    userSelect: "none" as "none",
-    height: "70px",
-    borderRadius: "5px",
-    transition: "background-color 0.1s",
-  };
-
-  // Estilo para los botones de acción
-  const actionButtonStyle = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#e0e0e0",
-    border: "none",
-    fontSize: "18px",
-    fontFamily: "Arial, sans-serif",
-    color: "#333",
-    cursor: "pointer",
-    userSelect: "none" as "none",
-    height: "60px",
-    borderRadius: "10px",
-    fontWeight: "bold",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
   };
 
-  const containerStyle = {
-    width: "300px",
+  // Estilo base gris para acciones
+  const actionBtnStyle = {
+    backgroundColor: "#e5e7eb", // Gris claro
+    border: "none",
+    borderRadius: "8px",
+    padding: "15px 5px",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#374151", // Gris oscuro
+    cursor: "pointer",
     display: "flex",
-    flexDirection: "column" as "column",
-    gap: "20px",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
+  // Estilo específico para "Auto Notas" (texto azul)
+  const autoBtnStyle = {
+    ...actionBtnStyle,
+    color: "#374151",
   };
 
   return (
-    <div style={containerStyle}>
-      {/* 1. SECCIÓN TOGGLE */}
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "20px",
+        width: "100%",
+        maxWidth: "320px",
+      }}
+    >
+      {/* 1. TOGGLE SUPERIOR */}
       <div
         style={{
           display: "flex",
+          backgroundColor: "white",
           borderRadius: "20px",
+          border: "1px solid black",
           overflow: "hidden",
-          border: "1px solid #333",
+          height: "40px",
         }}
       >
-        <div
+        <button
           onClick={() => setInputMode("normal")}
           style={{
             flex: 1,
-            padding: "12px",
-            textAlign: "center",
-            cursor: "pointer",
             backgroundColor: inputMode === "normal" ? "black" : "white",
             color: inputMode === "normal" ? "white" : "black",
-            fontFamily: "Arial, sans-serif",
+            border: "none",
             fontWeight: "bold",
+            cursor: "pointer",
             fontSize: "14px",
           }}
         >
           Normal
-        </div>
-        <div
+        </button>
+        <button
           onClick={() => setInputMode("candidate")}
           style={{
             flex: 1,
-            padding: "12px",
-            textAlign: "center",
-            cursor: "pointer",
             backgroundColor: inputMode === "candidate" ? "black" : "white",
             color: inputMode === "candidate" ? "white" : "black",
-            fontFamily: "Arial, sans-serif",
+            border: "none",
             fontWeight: "bold",
+            cursor: "pointer",
             fontSize: "14px",
-            borderLeft: "1px solid #333",
           }}
         >
           Candidate
-        </div>
+        </button>
       </div>
 
-      {/* 2. TECLADO NUMÉRICO */}
+      {/* 2. NUMPAD */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "8px",
+          gap: "10px",
         }}
       >
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-          <div
+          <button
             key={num}
             onClick={() => onNumberClick(num)}
-            style={numButtonStyle}
+            style={numberBtnStyle}
             onMouseOver={(e) =>
-              (e.currentTarget.style.backgroundColor = "#e0e0e0")
+              (e.currentTarget.style.backgroundColor = "#f3f4f6")
             }
             onMouseOut={(e) =>
               (e.currentTarget.style.backgroundColor = "white")
             }
           >
             {num}
-          </div>
+          </button>
         ))}
       </div>
 
-      {/* 3. SECCIÓN ACCIONES (Ahora tendrá 3 filas) */}
+      {/* 3. BOTONES DE ACCIÓN (ORDEN FINAL CORREGIDO) */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)", // 2 Columnas
+          gridTemplateColumns: "repeat(2, 1fr)",
           gap: "10px",
         }}
       >
-        <button onClick={onUndoClick} style={actionButtonStyle}>
+        {/* FILA 1 */}
+        <button onClick={onUndoClick} style={actionBtnStyle}>
           Undo
         </button>
-        <button onClick={onDeleteClick} style={actionButtonStyle}>
+        <button onClick={onDeleteClick} style={actionBtnStyle}>
           Borrar
         </button>
 
+        {/* FILA 2 */}
         <button
           onClick={() => setShowCandidates(!showCandidates)}
-          style={{ ...actionButtonStyle, fontSize: "16px" }}
+          style={actionBtnStyle}
         >
           {showCandidates ? "Ocultar Notas" : "Ver Notas"}
         </button>
+        <button onClick={onClearCandidatesClick} style={actionBtnStyle}>
+          Borrar Candt
+        </button>
 
-        <button
-          onClick={onCreateCandidates}
-          style={{ ...actionButtonStyle, fontSize: "16px", color: "#2563eb" }}
-        >
+        {/* FILA 3 (Intercambiados) */}
+        {/* Izquierda: Auto Notas */}
+        <button onClick={onCreateCandidates} style={autoBtnStyle}>
           Auto Notas
         </button>
 
-        {/* --- NUEVOS BOTONES --- */}
+        {/* Derecha: Interruptor */}
         <button
-          onClick={onHintClick}
-          style={{ ...actionButtonStyle, fontSize: "16px", color: "#d97706" }} // Un color ámbar para diferenciar
+          onClick={onToggleSmartNotes}
+          style={actionBtnStyle}
+          title="Recalcular notas automáticamente al escribir"
         >
-          Hint
-        </button>
-
-        <button
-          onClick={onClearCandidatesClick}
-          style={{ ...actionButtonStyle, fontSize: "16px" }}
-        >
-          Borrar Candt
+          Notas Auto: {smartNotesMode ? "ON" : "OFF"}
         </button>
       </div>
     </div>

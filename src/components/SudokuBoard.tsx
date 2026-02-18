@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { sudokuPuzzles, SudokuGridType } from "../data/sudokuPuzzles";
 import {
   CandidateGridType,
   generateEmptyCandidates,
@@ -10,8 +9,15 @@ import {
 } from "../logic/candidateManager";
 import { getHint, HintData } from "../logic/hintManager";
 import { useGameHistory } from "../hooks/useGameHistory";
-import ControlPad from "./ControlPad";
 import { scanSudokuImage, ScanResponse } from "../actions/solveSudokuFromImage";
+import { getRandomPuzzle, Difficulty } from "../data/puzzles";
+
+// Importamos los paneles
+import ControlPad from "./ControlPad";
+import ControlTools from "./ControlTools";
+
+// --- TIPOS ---
+type SudokuGridType = (number | null)[];
 
 // --- ICONOS ---
 const PauseIcon = () => (
@@ -189,40 +195,35 @@ const sliceImageInto81 = (file: File): Promise<string[]> => {
         const pieces: string[] = [];
         const cellW = img.width / 9;
         const cellH = img.height / 9;
+        const TARGET_SIZE = 100;
+        const paddingW = cellW * 0.1;
+        const paddingH = cellH * 0.1;
+        const safeW = cellW - paddingW * 2;
+        const safeH = cellH - paddingH * 2;
 
-        // Tamaño final pequeño para no saturar la API (110px es suficiente para ver un número)
-        const TARGET_SIZE = 110;
-
-        // Recorremos las 81 celdas (Fila por fila, de izquierda a derecha)
         for (let row = 0; row < 9; row++) {
           for (let col = 0; col < 9; col++) {
             const canvas = document.createElement("canvas");
             canvas.width = TARGET_SIZE;
             canvas.height = TARGET_SIZE;
             const ctx = canvas.getContext("2d");
-
             if (ctx) {
-              // Recorte + Escalado agresivo
-              // dx, dy, dw, dh = coordenadas destino
-              // sx, sy, sw, sh = coordenadas origen
               ctx.drawImage(
                 img,
-                col * cellW,
-                row * cellH,
-                cellW,
-                cellH, // Origen
+                col * cellW + paddingW,
+                row * cellH + paddingH,
+                safeW,
+                safeH,
                 0,
                 0,
                 TARGET_SIZE,
-                TARGET_SIZE, // Destino (Reducido)
+                TARGET_SIZE,
               );
-
-              // Exportamos en calidad media para ahorrar ancho de banda
               pieces.push(canvas.toDataURL("image/jpeg", 0.7));
             }
           }
         }
-        resolve(pieces); // Retorna 81 imágenes
+        resolve(pieces);
       };
       img.onerror = reject;
     };
@@ -231,33 +232,33 @@ const sliceImageInto81 = (file: File): Promise<string[]> => {
 };
 
 export default function SudokuBoard() {
-  const activePuzzleIndex = 0;
-  const currentPuzzleData = sudokuPuzzles[activePuzzleIndex];
+  const emptyGrid = Array(81).fill(0);
 
-  const [initialPuzzle, setInitialPuzzle] = useState<number[]>(
-    currentPuzzleData.grid,
-  );
+  const [initialPuzzle, setInitialPuzzle] = useState<number[]>(emptyGrid);
   const [grid, setGrid] = useState<SudokuGridType>(
-    initialPuzzle.map((n) => (n === 0 ? null : n)),
+    emptyGrid.map((n) => (n === 0 ? null : n)),
   );
   const [candidatesGrid, setCandidatesGrid] = useState<CandidateGridType>(() =>
-    generateEmptyCandidates(initialPuzzle.map((n) => (n === 0 ? null : n))),
+    generateEmptyCandidates(emptyGrid),
   );
 
   const { saveSnapshot, undoLastMove } = useGameHistory(grid, candidatesGrid);
 
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [time, setTime] = useState(0);
-  const [isRunning, setIsRunning] = useState(true);
+  const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isGameWon, setIsGameWon] = useState(false);
   const [inputMode, setInputMode] = useState<"normal" | "candidate">("normal");
   const [showCandidates, setShowCandidates] = useState(false);
   const [autoPauseEnabled, setAutoPauseEnabled] = useState(true);
+
+  // --- NUEVO ESTADO PARA NOTAS INTELIGENTES ---
+  const [isSmartNotes, setIsSmartNotes] = useState(false);
+
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   const [hintState, setHintState] = useState<{
     active: boolean;
     level: number;
@@ -279,140 +280,45 @@ export default function SudokuBoard() {
     }, 3000);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsScanning(true);
-    setIsPaused(true);
-
-    try {
-      // 1. ESTRATEGIA NUCLEAR: 81 CORTES
-      console.log("☢️ Iniciando corte de 81 celdas...");
-      const pieces = await sliceImageInto81(file);
-      console.log(`✅ 81 imágenes generadas.`);
-
-      // 2. ENVIAMOS LAS 81 PIEZAS AL SERVIDOR
-      const result: ScanResponse = await scanSudokuImage(pieces);
-
-      if (result.success) {
-        const newPuzzleNumbers = result.grid;
-        setInitialPuzzle(newPuzzleNumbers);
-        const newGrid = newPuzzleNumbers.map((n: number) =>
-          n === 0 ? null : n,
-        );
-        setGrid(newGrid);
-        setCandidatesGrid(generateEmptyCandidates(newGrid));
-        setTime(0);
-        setHintState({ active: false, level: 0, data: null });
-        setIsGameWon(false);
-        setVisualHint({ mode: "none", indexOrValue: null });
-        alert("¡Sudoku escaneado con PRECISIÓN TOTAL!");
-      } else {
-        console.error("Server Error:", result.error);
-        alert("Error: " + result.error);
-      }
-    } catch (error) {
-      console.error("Client Error:", error);
-      alert("Ocurrió un error inesperado.");
-    } finally {
-      setIsScanning(false);
-      setIsPaused(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  // --- RESTO DE FUNCIONES (Sin cambios) ---
-  const handleUndo = useCallback(() => {
-    if (isPaused || isGameWon) return;
-    const previousState = undoLastMove();
-    if (previousState) {
-      setGrid(previousState.grid);
-      setCandidatesGrid(previousState.candidates);
-      setHintState({ active: false, level: 0, data: null });
-      setVisualHint({ mode: "none", indexOrValue: null });
-    }
-  }, [undoLastMove, isPaused, isGameWon]);
-
-  const handleAutoCandidates = useCallback(() => {
-    if (isPaused || isGameWon) return;
-    saveSnapshot(grid, candidatesGrid);
-    setCandidatesGrid(calculateAllCandidates(grid));
-    setShowCandidates(true);
-    setHintState({ active: false, level: 0, data: null });
-  }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot]);
-
-  const handleInput = useCallback(
-    (num: number) => {
-      if (isPaused || isGameWon || selectedIdx === null) return;
-      if (initialPuzzle[selectedIdx] !== 0) return;
-      saveSnapshot(grid, candidatesGrid);
-      setHintState({ active: false, level: 0, data: null });
-      setVisualHint({ mode: "none", indexOrValue: null });
-      if (inputMode === "normal") {
-        const newGrid = [...grid];
-        newGrid[selectedIdx] = num;
-        setGrid(newGrid);
-        const newCandidates = [...candidatesGrid];
-        newCandidates[selectedIdx] = [];
-        setCandidatesGrid(newCandidates);
-      } else {
-        if (grid[selectedIdx] === null) {
-          const newCandidates = [...candidatesGrid];
-          newCandidates[selectedIdx] = toggleCandidate(
-            newCandidates[selectedIdx],
-            num,
-          );
-          setCandidatesGrid(newCandidates);
-          if (!showCandidates) setShowCandidates(true);
-        }
-      }
-    },
-    [
-      grid,
-      candidatesGrid,
-      selectedIdx,
-      isPaused,
-      isGameWon,
-      initialPuzzle,
-      inputMode,
-      saveSnapshot,
-      showCandidates,
-    ],
-  );
-
-  const handleDelete = useCallback(() => {
-    if (isPaused || isGameWon || selectedIdx === null) return;
-    if (initialPuzzle[selectedIdx] !== 0) return;
-    saveSnapshot(grid, candidatesGrid);
+  const handleResetCurrent = () => {
+    if (!isRunning && initialPuzzle.every((n) => n === 0)) return;
+    if (
+      !window.confirm(
+        "¿Reiniciar este puzzle? Se borrará todo tu progreso actual.",
+      )
+    )
+      return;
+    const resetGrid = initialPuzzle.map((n) => (n === 0 ? null : n));
+    setGrid(resetGrid);
+    setCandidatesGrid(generateEmptyCandidates(resetGrid));
+    setTime(0);
+    setIsPaused(false);
+    setIsGameWon(false);
+    setSelectedIdx(null);
     setHintState({ active: false, level: 0, data: null });
     setVisualHint({ mode: "none", indexOrValue: null });
-    const newGrid = [...grid];
-    newGrid[selectedIdx] = null;
+  };
+
+  const handleNewGame = (difficulty: Difficulty) => {
+    const hasNumbers = grid.some((n) => n !== null);
+    if (hasNumbers && !isGameWon) {
+      const confirm = window.confirm(
+        `¿Iniciar nuevo juego nivel ${difficulty.toUpperCase()}? Se perderá el progreso actual.`,
+      );
+      if (!confirm) return;
+    }
+    const newPuzzleNumbers = getRandomPuzzle(difficulty);
+    const hasData = newPuzzleNumbers.some((n) => n !== 0);
+    if (!hasData) {
+      alert(
+        `⚠️ Aún no hay puzzles cargados para la dificultad: ${difficulty}.`,
+      );
+      return;
+    }
+    setInitialPuzzle(newPuzzleNumbers);
+    const newGrid = newPuzzleNumbers.map((n) => (n === 0 ? null : n));
     setGrid(newGrid);
-  }, [
-    grid,
-    candidatesGrid,
-    selectedIdx,
-    isPaused,
-    isGameWon,
-    initialPuzzle,
-    saveSnapshot,
-  ]);
-
-  const handleClearCandidates = useCallback(() => {
-    if (isPaused || isGameWon) return;
-    saveSnapshot(grid, candidatesGrid);
-    setCandidatesGrid(Array.from({ length: 81 }, () => []));
-    setHintState({ active: false, level: 0, data: null });
-  }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot]);
-
-  const handlePauseToggle = () => setIsPaused(!isPaused);
-
-  const handleRestart = () => {
-    const initialCleaned = initialPuzzle.map((n) => (n === 0 ? null : n));
-    setGrid(initialCleaned);
-    setCandidatesGrid(generateEmptyCandidates(initialCleaned));
+    setCandidatesGrid(generateEmptyCandidates(newGrid));
     setTime(0);
     setIsPaused(false);
     setIsGameWon(false);
@@ -423,21 +329,54 @@ export default function SudokuBoard() {
     setVisualHint({ mode: "none", indexOrValue: null });
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
+  // --- LÓGICA DE PISTAS CORREGIDA (Híbrida y Segura) ---
   const handleHint = useCallback(() => {
     if (isPaused || isGameWon) return;
     let currentData = hintState.data;
     let nextLevel = hintState.level + 1;
+
     if (!hintState.active || !currentData) {
-      currentData = getHint(grid, candidatesGrid);
+      // 1. Calculamos la Verdad Matemática
+      const mathCandidates = calculateAllCandidates(grid);
+
+      // 2. Comprobación de "Tablero Roto" (Error grave)
+      const isBroken = mathCandidates.some(
+        (c, i) => grid[i] === null && c.length === 0,
+      );
+      if (isBroken) {
+        alert(
+          "⚠️ El tablero parece tener un error (una celda se quedó sin posibilidades). Revisa los números ingresados.",
+        );
+        return;
+      }
+
+      // 3. GENERACIÓN DE MATRIZ HÍBRIDA SEGURA
+      const hybridCandidates = mathCandidates.map((math, i) => {
+        const user = candidatesGrid[i]; // Notas del usuario
+
+        if (grid[i] !== null) return [];
+
+        if (user.length > 0) {
+          // A. Intersección segura
+          const validUserNotes = user.filter((c) => math.includes(c));
+          // B. Rescate: Si el usuario borró todo lo correcto, usamos la matemática
+          if (validUserNotes.length > 0) {
+            return validUserNotes;
+          }
+        }
+        return math;
+      });
+
+      // 4. LLAMADA A GETHINT CON 3 ARGUMENTOS
+      // Pasamos: (Tablero, Candidatos Híbridos, Candidatos Originales del Usuario)
+      currentData = getHint(grid, hybridCandidates, candidatesGrid);
+
       nextLevel = 1;
+
       if (currentData.type === "none") {
-        alert("🤔 No veo jugadas lógicas.");
+        alert(
+          "🤔 No veo jugadas lógicas simples basándome en tus notas actuales.",
+        );
         return;
       }
       if (currentData.type === "error") {
@@ -446,14 +385,14 @@ export default function SudokuBoard() {
       }
       setHintState({ active: true, level: 1, data: currentData });
     } else {
-      if (nextLevel > 5) {
-        alert("💡 ¡Esa fue la última pista!");
-        setHintState({ active: false, level: 0, data: null });
-        setVisualHint({ mode: "none", indexOrValue: null });
-        return;
+      if (hintState.level >= 5) {
+        nextLevel = 5;
+      } else {
+        setHintState((prev) => ({ ...prev, level: nextLevel }));
       }
-      setHintState((prev) => ({ ...prev, level: nextLevel }));
     }
+
+    // VISUALIZACIÓN
     if (currentData.cellIdx !== null && currentData.value !== null) {
       const rowIdx = Math.floor(currentData.cellIdx / 9);
       const colIdx = currentData.cellIdx % 9;
@@ -479,6 +418,153 @@ export default function SudokuBoard() {
       }
     }
   }, [isPaused, isGameWon, grid, candidatesGrid, hintState]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsScanning(true);
+    setIsPaused(true);
+    try {
+      console.log("☢️ Iniciando corte de 81 celdas...");
+      const pieces = await sliceImageInto81(file);
+      const result: ScanResponse = await scanSudokuImage(pieces);
+      if (result.success) {
+        const newPuzzleNumbers = result.grid;
+        setInitialPuzzle(newPuzzleNumbers);
+        const newGrid = newPuzzleNumbers.map((n: number) =>
+          n === 0 ? null : n,
+        );
+        setGrid(newGrid);
+        setCandidatesGrid(generateEmptyCandidates(newGrid));
+        setTime(0);
+        setHintState({ active: false, level: 0, data: null });
+        setIsGameWon(false);
+        setVisualHint({ mode: "none", indexOrValue: null });
+        setIsRunning(true);
+        alert("¡Sudoku escaneado con PRECISIÓN TOTAL!");
+      } else {
+        alert("Error: " + result.error);
+      }
+    } catch (error) {
+      alert("Ocurrió un error inesperado.");
+    } finally {
+      setIsScanning(false);
+      setIsPaused(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleUndo = useCallback(() => {
+    if (isPaused || isGameWon) return;
+    const previousState = undoLastMove();
+    if (previousState) {
+      setGrid(previousState.grid);
+      setCandidatesGrid(previousState.candidates);
+      setHintState({ active: false, level: 0, data: null });
+      setVisualHint({ mode: "none", indexOrValue: null });
+    }
+  }, [undoLastMove, isPaused, isGameWon]);
+  const handleAutoCandidates = useCallback(() => {
+    if (isPaused || isGameWon) return;
+    saveSnapshot(grid, candidatesGrid);
+    setCandidatesGrid(calculateAllCandidates(grid));
+    setShowCandidates(true);
+    setHintState({ active: false, level: 0, data: null });
+  }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot]);
+
+  // --- HANDLE INPUT CON "SMART NOTES" ---
+  const handleInput = useCallback(
+    (num: number) => {
+      if (isPaused || isGameWon || selectedIdx === null) return;
+      if (initialPuzzle[selectedIdx] !== 0) return;
+
+      saveSnapshot(grid, candidatesGrid);
+      setHintState({ active: false, level: 0, data: null });
+      setVisualHint({ mode: "none", indexOrValue: null });
+
+      if (inputMode === "normal") {
+        const newGrid = [...grid];
+        newGrid[selectedIdx] = num;
+        setGrid(newGrid);
+
+        if (isSmartNotes) {
+          const newCandidates = calculateAllCandidates(newGrid);
+          setCandidatesGrid(newCandidates);
+          if (!showCandidates) setShowCandidates(true);
+        } else {
+          const newCandidates = [...candidatesGrid];
+          newCandidates[selectedIdx] = [];
+          setCandidatesGrid(newCandidates);
+        }
+      } else {
+        if (grid[selectedIdx] === null) {
+          const newCandidates = [...candidatesGrid];
+          newCandidates[selectedIdx] = toggleCandidate(
+            newCandidates[selectedIdx],
+            num,
+          );
+          setCandidatesGrid(newCandidates);
+          if (!showCandidates) setShowCandidates(true);
+        }
+      }
+    },
+    [
+      grid,
+      candidatesGrid,
+      selectedIdx,
+      isPaused,
+      isGameWon,
+      initialPuzzle,
+      inputMode,
+      saveSnapshot,
+      showCandidates,
+      isSmartNotes,
+    ],
+  );
+
+  const handleDelete = useCallback(() => {
+    if (isPaused || isGameWon || selectedIdx === null) return;
+    if (initialPuzzle[selectedIdx] !== 0) return;
+    saveSnapshot(grid, candidatesGrid);
+    setHintState({ active: false, level: 0, data: null });
+    setVisualHint({ mode: "none", indexOrValue: null });
+    const newGrid = [...grid];
+    newGrid[selectedIdx] = null;
+    setGrid(newGrid);
+  }, [
+    grid,
+    candidatesGrid,
+    selectedIdx,
+    isPaused,
+    isGameWon,
+    initialPuzzle,
+    saveSnapshot,
+  ]);
+  const handleClearCandidates = useCallback(() => {
+    if (isPaused || isGameWon) return;
+    saveSnapshot(grid, candidatesGrid);
+    setCandidatesGrid(Array.from({ length: 81 }, () => []));
+    setHintState({ active: false, level: 0, data: null });
+  }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot]);
+  const handlePauseToggle = () => setIsPaused(!isPaused);
+  const handleRestart = () => {
+    const initialCleaned = initialPuzzle.map((n) => (n === 0 ? null : n));
+    setGrid(initialCleaned);
+    setCandidatesGrid(generateEmptyCandidates(initialCleaned));
+    setTime(0);
+    setIsPaused(false);
+    setIsGameWon(false);
+    setIsRunning(true);
+    setSelectedIdx(null);
+    setShowCandidates(false);
+    setHintState({ active: false, level: 0, data: null });
+    setVisualHint({ mode: "none", indexOrValue: null });
+  };
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const getAllConflicts = (currentGrid: SudokuGridType) => {
     const conflictSet = new Set<number>();
@@ -506,7 +592,6 @@ export default function SudokuBoard() {
     return conflictSet;
   };
   const conflicts = getAllConflicts(grid);
-
   useEffect(() => {
     const isFull = grid.every((cell) => cell !== null);
     if (isFull && conflicts.size === 0 && !isGameWon) {
@@ -514,7 +599,6 @@ export default function SudokuBoard() {
       setIsRunning(false);
     }
   }, [grid, conflicts, isGameWon]);
-
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && autoPauseEnabled) setIsPaused(true);
@@ -523,14 +607,12 @@ export default function SudokuBoard() {
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [autoPauseEnabled]);
-
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRunning && !isPaused && !isGameWon)
       interval = setInterval(() => setTime((prev) => prev + 1), 1000);
     return () => clearInterval(interval);
   }, [isRunning, isPaused, isGameWon]);
-
   const handleArrowMove = useCallback(
     (key: string) => {
       if (selectedIdx === null) {
@@ -544,7 +626,6 @@ export default function SudokuBoard() {
     },
     [selectedIdx],
   );
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isPaused || isGameWon) return;
@@ -603,6 +684,13 @@ export default function SudokuBoard() {
           gap: "60px",
         }}
       >
+        {/* PANEL IZQUIERDO */}
+        <ControlTools
+          hintState={hintState}
+          onNewGame={handleNewGame}
+          onHint={handleHint}
+        />
+
         {/* TABLERO */}
         <div
           style={{
@@ -683,9 +771,9 @@ export default function SudokuBoard() {
                 if (isVisualHintActive) bgColor = "#f9a8d4";
                 else if (hasConflict && !isInitial) bgColor = "#ffcccc";
                 else if (isSelected)
-                  bgColor = val !== null ? "#fbbf24" : "#bbdefb";
-                else if (isSameValue) bgColor = "#fbbf24";
-                else if (isPeer) bgColor = isInitial ? "#c8d6e5" : "#f1f5f9";
+                  bgColor = val !== null ? "#d48200" : "#fb9b00";
+                else if (isSameValue) bgColor = "#e69100";
+                else if (isPeer) bgColor = isInitial ? "#d3c6af" : "#f9eac2";
                 else if (isInitial) bgColor = "#e0e0e0";
 
                 return (
@@ -705,7 +793,7 @@ export default function SudokuBoard() {
                       color: hasConflict
                         ? "red"
                         : !isInitial
-                          ? "#2563eb"
+                          ? "#121212"
                           : "#121212",
                       cursor: "pointer",
                       position: "relative",
@@ -749,62 +837,124 @@ export default function SudokuBoard() {
           ))}
         </div>
 
-        {/* PANEL DE CONTROL */}
-        <div className="flex flex-col gap-4">
+        {/* PANEL DERECHO */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            width: "100%",
+            maxWidth: "320px",
+          }}
+        >
           <ControlPad
             onNumberClick={handleInput}
             onDeleteClick={handleDelete}
             onUndoClick={handleUndo}
             onCreateCandidates={handleAutoCandidates}
-            onHintClick={handleHint}
             onClearCandidatesClick={handleClearCandidates}
             inputMode={inputMode}
             setInputMode={setInputMode}
             showCandidates={showCandidates}
             setShowCandidates={setShowCandidates}
+            smartNotesMode={isSmartNotes}
+            onToggleSmartNotes={() => setIsSmartNotes(!isSmartNotes)}
           />
 
-          <div className="flex flex-col items-center gap-4 mt-5 font-sans text-gray-500">
-            <div className="flex items-center gap-3 text-lg font-bold">
-              <span>{formatTime(time)}</span>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "10px",
+              marginTop: "10px",
+              borderTop: "1px solid #e5e7eb",
+              paddingTop: "20px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+              <span
+                style={{
+                  fontSize: "20px",
+                  fontWeight: "bold",
+                  fontFamily: "monospace",
+                  color: "#374151",
+                }}
+              >
+                {formatTime(time)}
+              </span>
               <button
                 onClick={handlePauseToggle}
-                className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
+                style={{
+                  padding: "10px",
+                  borderRadius: "50%",
+                  border: "none",
+                  backgroundColor: "#e5e7eb",
+                  cursor: "pointer",
+                  display: "flex",
+                }}
               >
                 {isPaused ? <PlayIcon /> : <PauseIcon />}
               </button>
               <button
+                onClick={handleResetCurrent}
+                title="Reiniciar este puzzle"
+                style={{
+                  padding: "10px",
+                  borderRadius: "50%",
+                  border: "none",
+                  backgroundColor: "#e5e7eb",
+                  cursor: "pointer",
+                  display: "flex",
+                }}
+              >
+                <ReloadIcon />
+              </button>
+              <button
                 onClick={() => setAutoPauseEnabled(!autoPauseEnabled)}
-                className={`p-2 rounded-full ${autoPauseEnabled ? "bg-gray-200" : "bg-gray-400"}`}
+                style={{
+                  padding: "10px",
+                  borderRadius: "50%",
+                  border: "none",
+                  backgroundColor: autoPauseEnabled ? "#e5e7eb" : "#9ca3af",
+                  color: autoPauseEnabled ? "black" : "white",
+                  cursor: "pointer",
+                  display: "flex",
+                }}
               >
                 {autoPauseEnabled ? <EyeIcon /> : <EyeOffIcon />}
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className={`p-2 rounded-full ${isScanning ? "bg-yellow-300 animate-pulse" : "bg-gray-200"}`}
                 disabled={isScanning}
-                title="Escanear Sudoku"
+                className={isScanning ? "animate-pulse" : ""}
+                style={{
+                  padding: "10px",
+                  borderRadius: "50%",
+                  border: "none",
+                  backgroundColor: isScanning ? "#fcd34d" : "#e5e7eb",
+                  cursor: isScanning ? "wait" : "pointer",
+                  display: "flex",
+                }}
               >
                 <CameraIcon />
               </button>
             </div>
-
-            {/* SECCIÓN DE HINT */}
-            {hintState.active && (
-              <div className="mt-2 mx-auto w-full max-w-[320px] text-center animate-in fade-in duration-500">
-                <p className="bg-yellow-50 border-2 border-yellow-200 text-yellow-800 text-xs font-bold px-4 py-3 rounded-xl shadow-sm break-words whitespace-normal leading-relaxed">
-                  {hintState.data?.levels[hintState.level as 1 | 2 | 3 | 4 | 5]}
-                </p>
-              </div>
-            )}
-
             {isScanning && (
-              <div className="text-orange-600 font-bold">
-                Analizando 81 celdas... ☢️
+              <div
+                style={{
+                  color: "#d97706",
+                  fontWeight: "bold",
+                  fontSize: "14px",
+                }}
+              >
+                Escaneando... ☢️
               </div>
             )}
             {conflicts.size > 0 && (
-              <div className="text-red-500 font-bold">
+              <div
+                style={{ color: "red", fontWeight: "bold", fontSize: "14px" }}
+              >
                 ⚠️ Errores detectados
               </div>
             )}
@@ -824,7 +974,7 @@ export default function SudokuBoard() {
           <div className="flex flex-col gap-4">
             {isScanning ? (
               <p className="text-lg text-gray-500">
-                Escaneo de precisión total en curso...
+                Escaneando celda por celda (por filas)...
               </p>
             ) : (
               <>
