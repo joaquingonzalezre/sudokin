@@ -277,7 +277,7 @@ export default function SudokuBoard() {
     setVisualHint({ mode, indexOrValue });
     hintTimeoutRef.current = setTimeout(() => {
       setVisualHint({ mode: "none", indexOrValue: null });
-    }, 3000);
+    }, 2000);
   };
 
   const handleResetCurrent = () => {
