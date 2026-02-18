@@ -177,8 +177,8 @@ type VisualHintType = {
   indexOrValue: number | null;
 };
 
-// --- FUNCIÓN DE INGENIERÍA: CORTADORA OPTIMIZADA CON GUÍAS ---
-const sliceImageInto9 = (file: File): Promise<string[]> => {
+// --- FUNCIÓN NUCLEAR: 81 CORTES ---
+const sliceImageInto81 = (file: File): Promise<string[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -187,65 +187,42 @@ const sliceImageInto9 = (file: File): Promise<string[]> => {
       img.src = event.target?.result as string;
       img.onload = () => {
         const pieces: string[] = [];
+        const cellW = img.width / 9;
+        const cellH = img.height / 9;
 
-        // 1. Calcular tamaño de recorte original
-        const srcW = img.width / 3;
-        const srcH = img.height / 3;
+        // Tamaño final pequeño para no saturar la API (110px es suficiente para ver un número)
+        const TARGET_SIZE = 110;
 
-        // 2. Definir tamaño de salida OPTIMIZADO (Evita error 400 por payload gigante)
-        // Reducimos cada "cajita" a máximo 400px. Suficiente para ver un número.
-        const MAX_SIZE = 400;
-        const scale = Math.min(1, MAX_SIZE / srcW);
-        const destW = srcW * scale;
-        const destH = srcH * scale;
-
-        for (let row = 0; row < 3; row++) {
-          for (let col = 0; col < 3; col++) {
+        // Recorremos las 81 celdas (Fila por fila, de izquierda a derecha)
+        for (let row = 0; row < 9; row++) {
+          for (let col = 0; col < 9; col++) {
             const canvas = document.createElement("canvas");
-            canvas.width = destW;
-            canvas.height = destH;
+            canvas.width = TARGET_SIZE;
+            canvas.height = TARGET_SIZE;
             const ctx = canvas.getContext("2d");
+
             if (ctx) {
-              // A. Dibujar la imagen recortada y escalada
+              // Recorte + Escalado agresivo
+              // dx, dy, dw, dh = coordenadas destino
+              // sx, sy, sw, sh = coordenadas origen
               ctx.drawImage(
                 img,
-                col * srcW,
-                row * srcH,
-                srcW,
-                srcH,
+                col * cellW,
+                row * cellH,
+                cellW,
+                cellH, // Origen
                 0,
                 0,
-                destW,
-                destH,
+                TARGET_SIZE,
+                TARGET_SIZE, // Destino (Reducido)
               );
 
-              // B. DIBUJAR GUÍAS VISUALES (Líneas Rojas) 🪄
-              // Ayuda a la IA a delimitar las celdas
-              ctx.strokeStyle = "rgba(255, 0, 0, 0.6)";
-              ctx.lineWidth = 3;
-
-              // Líneas Verticales
-              ctx.beginPath();
-              ctx.moveTo(destW / 3, 0);
-              ctx.lineTo(destW / 3, destH);
-              ctx.moveTo((destW / 3) * 2, 0);
-              ctx.lineTo((destW / 3) * 2, destH);
-              ctx.stroke();
-
-              // Líneas Horizontales
-              ctx.beginPath();
-              ctx.moveTo(0, destH / 3);
-              ctx.lineTo(destW, destH / 3);
-              ctx.moveTo(0, (destH / 3) * 2);
-              ctx.lineTo(destW, (destH / 3) * 2);
-              ctx.stroke();
-
-              // C. Exportar comprimido (0.7 quality)
+              // Exportamos en calidad media para ahorrar ancho de banda
               pieces.push(canvas.toDataURL("image/jpeg", 0.7));
             }
           }
         }
-        resolve(pieces);
+        resolve(pieces); // Retorna 81 imágenes
       };
       img.onerror = reject;
     };
@@ -310,11 +287,12 @@ export default function SudokuBoard() {
     setIsPaused(true);
 
     try {
-      // 1. CORTAMOS Y OPTIMIZAMOS (Estrategia 3x3 + Guías)
-      console.log("✂️ Cortando imagen en 9 sectores con guías...");
-      const pieces = await sliceImageInto9(file);
+      // 1. ESTRATEGIA NUCLEAR: 81 CORTES
+      console.log("☢️ Iniciando corte de 81 celdas...");
+      const pieces = await sliceImageInto81(file);
+      console.log(`✅ 81 imágenes generadas.`);
 
-      // 2. ENVIAMOS LAS 9 PIEZAS AL SERVIDOR
+      // 2. ENVIAMOS LAS 81 PIEZAS AL SERVIDOR
       const result: ScanResponse = await scanSudokuImage(pieces);
 
       if (result.success) {
@@ -329,7 +307,7 @@ export default function SudokuBoard() {
         setHintState({ active: false, level: 0, data: null });
         setIsGameWon(false);
         setVisualHint({ mode: "none", indexOrValue: null });
-        alert("¡Sudoku escaneado con éxito!");
+        alert("¡Sudoku escaneado con PRECISIÓN TOTAL!");
       } else {
         console.error("Server Error:", result.error);
         alert("Error: " + result.error);
@@ -344,7 +322,7 @@ export default function SudokuBoard() {
     }
   };
 
-  // --- RESTO DE FUNCIONES DEL JUEGO (Sin cambios) ---
+  // --- RESTO DE FUNCIONES (Sin cambios) ---
   const handleUndo = useCallback(() => {
     if (isPaused || isGameWon) return;
     const previousState = undoLastMove();
@@ -822,7 +800,7 @@ export default function SudokuBoard() {
 
             {isScanning && (
               <div className="text-orange-600 font-bold">
-                Analizando 9 sectores... 🤖
+                Analizando 81 celdas... ☢️
               </div>
             )}
             {conflicts.size > 0 && (
@@ -846,7 +824,7 @@ export default function SudokuBoard() {
           <div className="flex flex-col gap-4">
             {isScanning ? (
               <p className="text-lg text-gray-500">
-                La IA está leyendo tu sudoku sector por sector...
+                Escaneo de precisión total en curso...
               </p>
             ) : (
               <>
