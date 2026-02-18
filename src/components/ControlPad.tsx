@@ -165,13 +165,13 @@ export default function ControlPad({
           {showCandidates ? "Ocultar Notas" : "Ver Notas"}
         </button>
         <button onClick={onClearCandidatesClick} style={actionBtnStyle}>
-          Borrar Candt
+          Limpiar Candidatos
         </button>
 
         {/* FILA 3 (Intercambiados) */}
         {/* Izquierda: Auto Notas */}
         <button onClick={onCreateCandidates} style={autoBtnStyle}>
-          Auto Notas
+          Crear Notas
         </button>
 
         {/* Derecha: Interruptor */}
@@ -180,7 +180,7 @@ export default function ControlPad({
           style={actionBtnStyle}
           title="Recalcular notas automáticamente al escribir"
         >
-          Notas Auto: {smartNotesMode ? "ON" : "OFF"}
+          SmartNotes: {smartNotesMode ? "ON" : "OFF"}
         </button>
       </div>
     </div>
