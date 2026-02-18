@@ -177,7 +177,6 @@ type VisualHintType = {
   indexOrValue: number | null;
 };
 
-// --- FUNCIÓN DE INGENIERÍA: CORTADORA DE IMÁGENES ---
 const sliceImageInto9 = (file: File): Promise<string[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -187,10 +186,10 @@ const sliceImageInto9 = (file: File): Promise<string[]> => {
       img.src = event.target?.result as string;
       img.onload = () => {
         const pieces: string[] = [];
+        // Cortamos un poquito más grande para que se vean los bordes negros (overlap)
         const w = img.width / 3;
         const h = img.height / 3;
 
-        // Recorremos 3x3 cuadrantes
         for (let row = 0; row < 3; row++) {
           for (let col = 0; col < 3; col++) {
             const canvas = document.createElement("canvas");
@@ -198,14 +197,35 @@ const sliceImageInto9 = (file: File): Promise<string[]> => {
             canvas.height = h;
             const ctx = canvas.getContext("2d");
             if (ctx) {
-              // Recorte quirúrgico: sx, sy, sw, sh -> dx, dy, dw, dh
+              // 1. Dibujar la imagen del sector
               ctx.drawImage(img, col * w, row * h, w, h, 0, 0, w, h);
-              // Calidad 0.85 para mantener nitidez sin explotar tokens
-              pieces.push(canvas.toDataURL("image/jpeg", 0.85));
+
+              // 2. DIBUJAR GUÍAS VISUALES (La Magia) 🪄
+              // Dibujamos líneas semitransparentes para dividir este sector de 3x3 en 9 celdas
+              ctx.strokeStyle = "rgba(255, 0, 0, 0.5)"; // Líneas Rojas
+              ctx.lineWidth = Math.max(2, w / 100); // Grosor dinámico
+
+              // Líneas Verticales (a 1/3 y 2/3 del ancho)
+              ctx.beginPath();
+              ctx.moveTo(w / 3, 0);
+              ctx.lineTo(w / 3, h);
+              ctx.moveTo((w / 3) * 2, 0);
+              ctx.lineTo((w / 3) * 2, h);
+              ctx.stroke();
+
+              // Líneas Horizontales (a 1/3 y 2/3 del alto)
+              ctx.beginPath();
+              ctx.moveTo(0, h / 3);
+              ctx.lineTo(w, h / 3);
+              ctx.moveTo(0, (h / 3) * 2);
+              ctx.lineTo(w, (h / 3) * 2);
+              ctx.stroke();
+
+              pieces.push(canvas.toDataURL("image/jpeg", 0.9));
             }
           }
         }
-        resolve(pieces); // Retorna array de 9 strings base64
+        resolve(pieces);
       };
       img.onerror = reject;
     };
