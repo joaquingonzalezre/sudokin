@@ -14,6 +14,8 @@ interface ControlPadProps {
   setShowCandidates: React.Dispatch<React.SetStateAction<boolean>>;
   smartNotesMode: boolean;
   onToggleSmartNotes: () => void;
+  // --- NUEVO: RECIBIMOS LA LISTA DE NÚMEROS COMPLETADOS ---
+  completedNumbers: number[];
 }
 
 export default function ControlPad({
@@ -28,38 +30,36 @@ export default function ControlPad({
   setShowCandidates,
   smartNotesMode,
   onToggleSmartNotes,
+  completedNumbers, // Lo extraemos aquí
 }: ControlPadProps) {
-  // Estilo para los números
+  // Estilo base para los números
   const numberBtnStyle = {
-    backgroundColor: "white",
     border: "1px solid #d1d5db",
     borderRadius: "8px",
     fontSize: "24px",
-    color: "#1f2937",
     height: "60px",
-    cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+    transition: "all 0.2s",
   };
 
   // Estilo base gris para acciones
   const actionBtnStyle = {
-    backgroundColor: "#e5e7eb", // Gris claro
+    backgroundColor: "#e5e7eb",
     border: "none",
     borderRadius: "8px",
     padding: "15px 5px",
     fontSize: "14px",
     fontWeight: "600",
-    color: "#374151", // Gris oscuro
+    color: "#374151",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
   };
 
-  // Estilo específico para "Auto Notas" (texto azul)
   const autoBtnStyle = {
     ...actionBtnStyle,
     color: "#374151",
@@ -116,7 +116,7 @@ export default function ControlPad({
         </button>
       </div>
 
-      {/* 2. NUMPAD */}
+      {/* 2. NUMPAD CON LÓGICA DE COLORES */}
       <div
         style={{
           display: "grid",
@@ -124,24 +124,38 @@ export default function ControlPad({
           gap: "10px",
         }}
       >
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-          <button
-            key={num}
-            onClick={() => onNumberClick(num)}
-            style={numberBtnStyle}
-            onMouseOver={(e) =>
-              (e.currentTarget.style.backgroundColor = "#f3f4f6")
-            }
-            onMouseOut={(e) =>
-              (e.currentTarget.style.backgroundColor = "white")
-            }
-          >
-            {num}
-          </button>
-        ))}
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => {
+          // Revisamos si el número actual ya está 9 veces en el tablero
+          const isCompleted = completedNumbers.includes(num);
+
+          return (
+            <button
+              key={num}
+              onClick={() => onNumberClick(num)}
+              disabled={isCompleted} // Desactivamos el botón si ya está completado
+              style={{
+                ...numberBtnStyle,
+                // Si está completado, se vuelve gris opaco; si no, es blanco normal
+                backgroundColor: isCompleted ? "#e5e7eb" : "white",
+                color: isCompleted ? "#9ca3af" : "#1f2937",
+                cursor: isCompleted ? "not-allowed" : "pointer",
+              }}
+              onMouseOver={(e) => {
+                if (!isCompleted)
+                  e.currentTarget.style.backgroundColor = "#f3f4f6";
+              }}
+              onMouseOut={(e) => {
+                if (!isCompleted)
+                  e.currentTarget.style.backgroundColor = "white";
+              }}
+            >
+              {num}
+            </button>
+          );
+        })}
       </div>
 
-      {/* 3. BOTONES DE ACCIÓN (ORDEN FINAL CORREGIDO) */}
+      {/* 3. BOTONES DE ACCIÓN */}
       <div
         style={{
           display: "grid",
@@ -149,7 +163,6 @@ export default function ControlPad({
           gap: "10px",
         }}
       >
-        {/* FILA 1 */}
         <button onClick={onUndoClick} style={actionBtnStyle}>
           Undo
         </button>
@@ -157,7 +170,6 @@ export default function ControlPad({
           Borrar
         </button>
 
-        {/* FILA 2 */}
         <button
           onClick={() => setShowCandidates(!showCandidates)}
           style={actionBtnStyle}
@@ -168,13 +180,10 @@ export default function ControlPad({
           Limpiar Candidatos
         </button>
 
-        {/* FILA 3 (Intercambiados) */}
-        {/* Izquierda: Auto Notas */}
         <button onClick={onCreateCandidates} style={autoBtnStyle}>
           Crear Notas
         </button>
 
-        {/* Derecha: Interruptor */}
         <button
           onClick={onToggleSmartNotes}
           style={actionBtnStyle}

@@ -7,6 +7,8 @@ import {
   toggleCandidate,
   calculateAllCandidates,
 } from "../logic/candidateManager";
+import { getCompletedNumbers } from "../utils/numberTracker";
+import { useGameMemory } from "../hooks/useGameMemory";
 import { getHint, HintData } from "../logic/hintManager";
 import { useGameHistory } from "../hooks/useGameHistory";
 import { getRandomPuzzle, Difficulty } from "../data/puzzles";
@@ -15,7 +17,7 @@ import {
   sliceImageInto81,
   createSudokuCollage,
   findAndCropSudokuGrid,
-  hasInk, // <--- ¡NUEVO!
+  hasInk,
 } from "../utils/imageTools";
 
 // Importamos los paneles
@@ -227,6 +229,28 @@ export default function SudokuBoard() {
     indexOrValue: null,
   });
 
+  // --- CALCULAMOS LOS NÚMEROS COMPLETADOS ---
+  const completedNumbers = getCompletedNumbers(grid);
+
+  // --- LA MAGIA DE LA MEMORIA EN UNA SOLA LÍNEA ---
+  useGameMemory({
+    initialPuzzle,
+    setInitialPuzzle,
+    grid,
+    setGrid,
+    candidatesGrid,
+    setCandidatesGrid,
+    time,
+    setTime,
+    setIsRunning,
+    autoPauseEnabled,
+    setAutoPauseEnabled,
+    isSmartNotes,
+    setIsSmartNotes,
+    showCandidates,
+    setShowCandidates,
+  });
+
   const triggerVisualHint = (
     mode: VisualHintType["mode"],
     indexOrValue: number,
@@ -294,10 +318,7 @@ export default function SudokuBoard() {
     let nextLevel = hintState.level + 1;
 
     if (!hintState.active || !currentData) {
-      // 1. Calculamos la Verdad Matemática
       const mathCandidates = calculateAllCandidates(grid);
-
-      // 2. Comprobación de "Tablero Roto" (Error grave)
       const isBroken = mathCandidates.some(
         (c, i) => grid[i] === null && c.length === 0,
       );
@@ -307,28 +328,17 @@ export default function SudokuBoard() {
         );
         return;
       }
-
-      // 3. GENERACIÓN DE MATRIZ HÍBRIDA SEGURA
       const hybridCandidates = mathCandidates.map((math, i) => {
-        const user = candidatesGrid[i]; // Notas del usuario
-
+        const user = candidatesGrid[i];
         if (grid[i] !== null) return [];
-
         if (user.length > 0) {
-          // A. Intersección segura
           const validUserNotes = user.filter((c) => math.includes(c));
-          // B. Rescate: Si el usuario borró todo lo correcto, usamos la matemática
-          if (validUserNotes.length > 0) {
-            return validUserNotes;
-          }
+          if (validUserNotes.length > 0) return validUserNotes;
         }
         return math;
       });
 
-      // 4. LLAMADA A GETHINT CON 3 ARGUMENTOS
-      // Pasamos: (Tablero, Candidatos Híbridos, Candidatos Originales del Usuario)
       currentData = getHint(grid, hybridCandidates, candidatesGrid);
-
       nextLevel = 1;
 
       if (currentData.type === "none") {
@@ -343,14 +353,10 @@ export default function SudokuBoard() {
       }
       setHintState({ active: true, level: 1, data: currentData });
     } else {
-      if (hintState.level >= 5) {
-        nextLevel = 5;
-      } else {
-        setHintState((prev) => ({ ...prev, level: nextLevel }));
-      }
+      if (hintState.level >= 5) nextLevel = 5;
+      else setHintState((prev) => ({ ...prev, level: nextLevel }));
     }
 
-    // VISUALIZACIÓN
     if (currentData.cellIdx !== null && currentData.value !== null) {
       const rowIdx = Math.floor(currentData.cellIdx / 9);
       const colIdx = currentData.cellIdx % 9;
@@ -377,11 +383,10 @@ export default function SudokuBoard() {
     }
   }, [isPaused, isGameWon, grid, candidatesGrid, hintState]);
 
-  // --- ORQUESTACIÓN HÍBRIDA V2 (Matemática + IA) ---
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // ========================================================
+  // 📸 MOTOR PRINCIPAL DE ESCANEO (Para Cámara y Ctrl+V)
+  // ========================================================
+  const processImageFile = async (file: File) => {
     setIsScanning(true);
     setIsPaused(true);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -392,31 +397,19 @@ export default function SudokuBoard() {
 
       console.log("🛠️ Paso 2: Cortando en 81 piezas de precisión...");
       const allPieces = await sliceImageInto81(croppedGridBase64);
-      // ----------------------------------------------------
-      // --- EL FILTRO HÍBRIDO ---
+
       console.log(
         "🧠 Paso 3: Análisis Híbrido (Separando vacíos de números)...",
       );
-
-      // Preparamos el tablero final lleno de CEROS
       const finalHybridGrid: number[] = Array(81).fill(0);
-
-      // Arrays para guardar solo lo que necesita la IA
       const piecesForAI: string[] = [];
       const originalIndices: number[] = [];
 
-      // Analizamos cada pieza una por una con el "Portero Matemático"
       for (let i = 0; i < 81; i++) {
-        // La función hasInk decide matemáticamente si es un 0 o no
         const isCellFull = await hasInk(allPieces[i]);
-
         if (isCellFull) {
-          // ¡Tiene tinta! Lo guardamos para la IA
           piecesForAI.push(allPieces[i]);
-          originalIndices.push(i); // Recordamos dónde estaba (ej: posición 12)
-        } else {
-          // Es blanco. El matemático dice que es 0. No hacemos nada, ya es 0 en finalHybridGrid.
-          // console.log(`Casilla ${i} detectada como vacía matemáticamente.`);
+          originalIndices.push(i);
         }
       }
 
@@ -425,7 +418,6 @@ export default function SudokuBoard() {
         `📊 Resultado del filtro: ${digitsCount} casillas tienen números, ${81 - digitsCount} son vacías.`,
       );
 
-      // Si no se detectó ningún número, abortamos.
       if (digitsCount === 0) {
         throw new Error(
           "No se detectó ningún número en el tablero. ¿Está muy clara la imagen?",
@@ -435,30 +427,22 @@ export default function SudokuBoard() {
       console.log(
         `🚀 Paso 4: Enviando collage filtrado a la IA (${digitsCount} dígitos)...`,
       );
-      // Creamos un collage SOLO con las piezas que tienen tinta
       const filteredCollage = await createSudokuCollage(piecesForAI);
-
-      // ------------------------------------------------
-      // Llamamos a la nueva API que espera exactamente 'digitsCount' números
       const result = await scanFilteredDigits(filteredCollage, digitsCount);
 
       if (result.success && result.grid.length > 0) {
         console.log("🧩 Paso 5: Reconstruyendo el tablero final...");
-
-        // RECONSTRUCCIÓN: Colocamos los números de la IA en sus posiciones originales
         result.grid.forEach((aiDigit, indexInAiResponse) => {
           const realPositionOnBoard = originalIndices[indexInAiResponse];
           finalHybridGrid[realPositionOnBoard] = aiDigit;
         });
 
-        // ¡Éxito! Cargamos el tablero híbrido perfecto
         setInitialPuzzle(finalHybridGrid);
         const newGrid = finalHybridGrid.map((n: number) =>
           n === 0 ? null : n,
         );
         setGrid(newGrid);
         setCandidatesGrid(generateEmptyCandidates(newGrid));
-
         setTime(0);
         setHintState({ active: false, level: 0, data: null });
         setIsGameWon(false);
@@ -479,6 +463,39 @@ export default function SudokuBoard() {
     }
   };
 
+  // Botón de subir archivo (Icono de cámara)
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processImageFile(file);
+  };
+
+  // ==========================================
+  // 📋 ESCUCHADOR DEL PORTAPAPELES (CTRL + V)
+  // ==========================================
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (isScanning) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            console.log(
+              "📸 Imagen detectada en el portapapeles. Iniciando escaneo...",
+            );
+            processImageFile(file);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [isScanning]);
+
   const handleUndo = useCallback(() => {
     if (isPaused || isGameWon) return;
     const previousState = undoLastMove();
@@ -489,6 +506,7 @@ export default function SudokuBoard() {
       setVisualHint({ mode: "none", indexOrValue: null });
     }
   }, [undoLastMove, isPaused, isGameWon]);
+
   const handleAutoCandidates = useCallback(() => {
     if (isPaused || isGameWon) return;
     saveSnapshot(grid, candidatesGrid);
@@ -565,13 +583,16 @@ export default function SudokuBoard() {
     initialPuzzle,
     saveSnapshot,
   ]);
+
   const handleClearCandidates = useCallback(() => {
     if (isPaused || isGameWon) return;
     saveSnapshot(grid, candidatesGrid);
     setCandidatesGrid(Array.from({ length: 81 }, () => []));
     setHintState({ active: false, level: 0, data: null });
   }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot]);
+
   const handlePauseToggle = () => setIsPaused(!isPaused);
+
   const handleRestart = () => {
     const initialCleaned = initialPuzzle.map((n) => (n === 0 ? null : n));
     setGrid(initialCleaned);
@@ -585,6 +606,7 @@ export default function SudokuBoard() {
     setHintState({ active: false, level: 0, data: null });
     setVisualHint({ mode: "none", indexOrValue: null });
   };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -616,7 +638,9 @@ export default function SudokuBoard() {
     }
     return conflictSet;
   };
+
   const conflicts = getAllConflicts(grid);
+
   useEffect(() => {
     const isFull = grid.every((cell) => cell !== null);
     if (isFull && conflicts.size === 0 && !isGameWon) {
@@ -624,6 +648,7 @@ export default function SudokuBoard() {
       setIsRunning(false);
     }
   }, [grid, conflicts, isGameWon]);
+
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && autoPauseEnabled) setIsPaused(true);
@@ -632,12 +657,14 @@ export default function SudokuBoard() {
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [autoPauseEnabled]);
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRunning && !isPaused && !isGameWon)
       interval = setInterval(() => setTime((prev) => prev + 1), 1000);
     return () => clearInterval(interval);
   }, [isRunning, isPaused, isGameWon]);
+
   const handleArrowMove = useCallback(
     (key: string) => {
       if (selectedIdx === null) {
@@ -651,6 +678,7 @@ export default function SudokuBoard() {
     },
     [selectedIdx],
   );
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isPaused || isGameWon) return;
@@ -749,6 +777,7 @@ export default function SudokuBoard() {
                 const isInitial = initialPuzzle[globalIdx] !== 0;
                 const hasConflict = conflicts.has(globalIdx);
                 const candidates = candidatesGrid[globalIdx];
+
                 let isPeer = false;
                 let isSameValue = false;
                 if (selectedIdx !== null && !isSelected) {
@@ -764,6 +793,7 @@ export default function SudokuBoard() {
                     isPeer = true;
                   if (sVal !== null && val === sVal) isSameValue = true;
                 }
+
                 let bgColor = "white";
                 let isVisualHintActive = false;
                 if (visualHint.mode !== "none") {
@@ -793,6 +823,7 @@ export default function SudokuBoard() {
                       isVisualHintActive = true;
                   }
                 }
+
                 if (isVisualHintActive) bgColor = "#f9a8d4";
                 else if (hasConflict && !isInitial) bgColor = "#ffcccc";
                 else if (isSelected)
@@ -884,6 +915,7 @@ export default function SudokuBoard() {
             setShowCandidates={setShowCandidates}
             smartNotesMode={isSmartNotes}
             onToggleSmartNotes={() => setIsSmartNotes(!isSmartNotes)}
+            completedNumbers={completedNumbers}
           />
 
           <div
@@ -965,6 +997,7 @@ export default function SudokuBoard() {
                 <CameraIcon />
               </button>
             </div>
+
             {isScanning && (
               <div
                 style={{
