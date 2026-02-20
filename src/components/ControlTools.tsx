@@ -1,233 +1,183 @@
 "use client";
 
 import React from "react";
-import { HintData } from "../logic/hintManager";
 import { Difficulty } from "../data/puzzles";
-
-// Re-introducimos el icono para el botón pequeño
-const BulbIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
-    <path d="M9 18h6" />
-    <path d="M10 22h4" />
-  </svg>
-);
+import { HintResult } from "../logic/hints/types";
 
 interface ControlToolsProps {
-  hintState: { active: boolean; level: number; data: HintData | null };
+  hintState: { active: boolean; currentStep: number; data: HintResult | null };
   onNewGame: (difficulty: Difficulty) => void;
-  onHint: () => void; // <--- NUEVA PROP: Recibimos la función de pista
+  onHint: () => void;
+  onCancelHint: () => void;
+  onImportClick: () => void;
+  isScanning: boolean;
 }
 
 export default function ControlTools({
-  hintState,
   onNewGame,
   onHint,
+  hintState,
+  onCancelHint,
+  onImportClick,
+  isScanning,
 }: ControlToolsProps) {
-  const diffBtnStyle = {
+  // Estilo base para los botones
+  const btnStyle = {
     backgroundColor: "white",
-    border: "1px solid #9ca3af",
-    borderRadius: "6px",
+    border: "1px solid #d1d5db",
+    borderRadius: "8px",
     padding: "10px",
-    fontSize: "16px",
-    fontWeight: "500",
-    color: "#000",
+    fontSize: "14px",
+    fontWeight: "bold",
     cursor: "pointer",
-    transition: "background 0.2s",
-    textAlign: "center" as const,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+    color: "#374151",
+    width: "100%",
+    marginBottom: "8px",
+    transition: "all 0.2s",
   };
 
-  // Cálculo del progreso visual
-  const progressPercent = hintState.active ? (hintState.level / 5) * 100 : 0;
-  const progressColor = "linear-gradient(90deg, #fffbeb 0%, #fcd34d 100%)";
+  const isHintActive = hintState.active && hintState.data;
+  const currentStep = hintState.currentStep;
+  const totalSteps = hintState.data?.totalSteps || 0;
 
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: "20px",
-        width: "100%",
-        maxWidth: "320px",
-        marginTop: "10px",
+        gap: "12px",
+        width: "220px",
       }}
     >
-      {/* SECCIÓN SUPERIOR: CREAR NUEVO SUDOKU */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        <h2
+      {/* SECCIÓN NUEVO JUEGO */}
+      <div>
+        <h3
           style={{
-            fontSize: "20px",
-            fontWeight: "bold",
-            color: "#000",
-            textAlign: "center",
-            marginBottom: "5px",
+            fontSize: "16px",
+            fontWeight: "900",
+            marginBottom: "10px",
+            color: "#111",
+            fontFamily: "Arial, sans-serif",
           }}
         >
-          Crear nuevo Sudoku
-        </h2>
+          Nuevo Sudoku
+        </h3>
+        <button style={btnStyle} onClick={() => onNewGame("easy")}>
+          Fácil
+        </button>
+        <button style={btnStyle} onClick={() => onNewGame("medium")}>
+          Intermedio
+        </button>
+        <button style={btnStyle} onClick={() => onNewGame("hard")}>
+          Difícil
+        </button>
+        <button style={btnStyle} onClick={() => onNewGame("expert")}>
+          Experto
+        </button>
+        <button style={btnStyle} onClick={() => onNewGame("nightmare")}>
+          Nightmare
+        </button>
 
-        <div
+        <button
+          onClick={onImportClick}
+          disabled={isScanning}
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "10px",
+            ...btnStyle,
+            backgroundColor: isScanning ? "#fcd34d" : "#eff6ff",
+            borderColor: isScanning ? "#f59e0b" : "#3b82f6",
+            color: isScanning ? "#b45309" : "#1d4ed8",
+            cursor: isScanning ? "wait" : "pointer",
+            marginTop: "4px",
           }}
         >
-          <button style={diffBtnStyle} onClick={() => onNewGame("easy")}>
-            facil
-          </button>
-          <button style={diffBtnStyle} onClick={() => onNewGame("medium")}>
-            intermedio
-          </button>
-          <button style={diffBtnStyle} onClick={() => onNewGame("hard")}>
-            dificil
-          </button>
-          <button style={diffBtnStyle} onClick={() => onNewGame("expert")}>
-            experto
-          </button>
-          <button style={diffBtnStyle} onClick={() => onNewGame("dailies")}>
-            dailies
-          </button>
-          <button style={diffBtnStyle} onClick={() => onNewGame("nightmare")}>
-            nightmare
-          </button>
-        </div>
+          {isScanning ? "Escaneando... ☢️" : "Importar Sudoku 📸"}
+        </button>
       </div>
 
-      {/* SECCIÓN INFERIOR: CAJA DE HINTS */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "5px",
-          marginTop: "20px",
-        }}
-      >
-        {/* --- AQUÍ ESTÁ EL CAMBIO: TÍTULO + BOTÓN --- */}
-        <div
+      {/* SECCIÓN PISTAS */}
+      <div>
+        {/* Botón Principal de Pistas con el CONTADOR INTEGRADO */}
+        <button
+          onClick={onHint}
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "10px",
-            marginBottom: "5px",
+            ...btnStyle,
+            backgroundColor: isHintActive ? "#3b82f6" : "#fef3c7",
+            borderColor: isHintActive ? "#2563eb" : "#f59e0b",
+            color: isHintActive ? "white" : "#d97706",
+            marginBottom: "8px",
           }}
         >
-          {/* NUEVO BOTÓN DE HINT (Pequeño y Naranja) */}
-          <button
-            onClick={onHint}
-            title="Pedir Pista"
-            style={{
-              backgroundColor: "#d97706",
-              color: "white",
-              border: "none",
-              borderRadius: "50%", // Redondo
-              width: "32px",
-              height: "32px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-              transition: "transform 0.1s",
-            }}
-            onMouseDown={(e) =>
-              (e.currentTarget.style.transform = "scale(0.9)")
-            }
-            onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-          >
-            <BulbIcon />
-          </button>
+          {!isHintActive
+            ? "💡 Pedir Pista"
+            : currentStep + 1 === totalSteps
+              ? `✨ Aplicar Jugada (${currentStep + 1}/${totalSteps})`
+              : `➡️ Siguiente Paso (${currentStep + 1}/${totalSteps})`}
+        </button>
 
-          {/* TEXTO DE ESTADO */}
-          <h3
-            style={{
-              fontSize: "18px",
-              fontWeight: "bold",
-              color: "#d97706",
-              margin: 0,
-            }}
-          >
-            Hints ({hintState.active ? hintState.level : 0}/5)
-          </h3>
-        </div>
-        {/* ------------------------------------------- */}
-
-        {/* CAJA DE TEXTO (Igual que antes) */}
+        {/* CAJA DE TEXTO FIJA (Con la X incrustada) */}
         <div
           style={{
-            position: "relative",
-            backgroundColor: "white",
-            border: "2px solid #d97706",
+            border: "2px solid #f59e0b",
             borderRadius: "8px",
-            minHeight: "150px",
+            padding: "16px 12px 12px 12px", // Un poco más de espacio arriba para la X
+            minHeight: "100px",
+            backgroundColor: "white",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            overflow: "hidden",
-            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+            textAlign: "center",
+            boxShadow: "inset 0 2px 4px rgba(0,0,0,0.05)",
+            position: "relative", // <-- CLAVE: Permite poner la X en la esquina
           }}
         >
-          {/* BARRA DE PROGRESO */}
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              bottom: 0,
-              width: `${progressPercent}%`,
-              background: progressColor,
-              transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
-              zIndex: 0,
-              borderRight: progressPercent > 0 ? "2px solid #d97706" : "none",
-            }}
-          />
+          {/* EL BOTÓN DE LA X EN LA ESQUINA SUPERIOR DERECHA */}
+          {isHintActive && (
+            <button
+              onClick={onCancelHint}
+              title="Cancelar Pista"
+              style={{
+                position: "absolute",
+                top: "4px",
+                right: "6px",
+                background: "transparent",
+                border: "none",
+                color: "#ef4444", // Rojo
+                fontSize: "14px",
+                fontWeight: "900",
+                cursor: "pointer",
+                padding: "2px",
+                lineHeight: "1",
+                fontFamily: "Arial, sans-serif",
+              }}
+            >
+              ✖
+            </button>
+          )}
 
-          {/* CONTENIDO TEXTO */}
-          <div
-            style={{
-              position: "relative",
-              zIndex: 10,
-              padding: "20px",
-              textAlign: "center",
-              color: "#1f2937",
-              fontSize: "14px",
-              lineHeight: "1.5",
-              width: "100%",
-            }}
-          >
-            {hintState.active && hintState.data ? (
-              <div className="animate-in fade-in zoom-in duration-300">
-                <p
-                  style={{
-                    marginBottom: "10px",
-                    fontWeight: "600",
-                    fontSize: "15px",
-                  }}
-                >
-                  📦 Pista Nivel {hintState.level}:
-                </p>
-                <p>
-                  {hintState.data.levels[hintState.level as 1 | 2 | 3 | 4 | 5]}
-                </p>
-              </div>
-            ) : (
-              <span style={{ color: "#9ca3af", fontStyle: "italic" }}>
-                (Presiona el foco o el botón Hint para recibir ayuda)
-              </span>
-            )}
-          </div>
+          {isHintActive ? (
+            <p
+              style={{
+                margin: 0,
+                fontSize: "14px",
+                color: "#1e3a8a",
+                lineHeight: "1.4",
+                fontWeight: "bold",
+              }}
+            >
+              {hintState.data!.steps[currentStep].message}
+            </p>
+          ) : (
+            <p
+              style={{
+                margin: 0,
+                fontSize: "13px",
+                color: "#9ca3af",
+                fontStyle: "italic",
+              }}
+            >
+              (Presiona el botón "Pedir Pista" para recibir ayuda)
+            </p>
+          )}
         </div>
       </div>
     </div>

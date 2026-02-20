@@ -1,10 +1,11 @@
-import { HintData, HintStrategy } from "./hints/types";
+// src/logic/hintManager.ts
+import { HintResult, HintStrategy } from "./hints/types";
 import { findNakedSingle } from "./hints/nakedSingle";
+import { findXWing } from "./hints/xWing";
 import { findHiddenSingle } from "./hints/hiddenSingle";
 import { findPointingPairs } from "./hints/pointingPairs";
 import { findNakedPair } from "./hints/nakedPair";
 import { findHiddenPair } from "./hints/hiddenPair";
-import { findXWing } from "./hints/xWing";
 
 const strategies: HintStrategy[] = [
   findNakedSingle,
@@ -15,33 +16,31 @@ const strategies: HintStrategy[] = [
   findXWing,
 ];
 
-export type { HintData };
+export type { HintResult }; // Exportamos el nuevo tipo
 
-// CAMBIO 1: La función ahora acepta el tercer argumento
 export function getHint(
   grid: (number | null)[],
   internalCandidates: number[][],
-  userCandidates: number[][], // <--- AGREGADO
-): HintData {
+  userCandidates: number[][],
+): HintResult {
   for (const strategy of strategies) {
-    // CAMBIO 2: Pasamos los 3 argumentos a la estrategia
     const hint = strategy(grid, internalCandidates, userCandidates);
     if (hint) {
-      return hint;
+      return hint; // Si encuentra algo, devuelve el resultado completo
     }
   }
 
+  // Si ninguna estrategia encuentra nada, devolvemos un HintResult de tipo "NONE"
   return {
-    type: "none",
-    cellIdx: null,
-    value: null,
-    candidates: [],
-    levels: {
-      1: "No veo jugadas lógicas simples disponibles.",
-      2: "Intenta revisar tus notas o llenar más candidatos.",
-      3: "Asegúrate de haber calculado todos los candidatos posibles (Auto Notas).",
-      4: "Si ya revisaste todo, verifica que no haya errores previos en el tablero.",
-      5: "Lo siento, no encuentro el siguiente paso lógico con las técnicas actuales.",
-    },
+    found: false,
+    type: "NONE",
+    totalSteps: 1, // Solo un mensaje final
+    steps: [
+      {
+        message:
+          "No encuentro jugadas lógicas simples. Revisa tus notas o intenta buscar patrones visualmente.",
+        highlights: { primaryCells: [], secondaryCells: [], focusNumber: null },
+      },
+    ],
   };
 }

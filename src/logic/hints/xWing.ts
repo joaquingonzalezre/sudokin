@@ -1,29 +1,29 @@
-import { HintStrategy } from "./types";
+// src/logic/hints/xWing.ts
+import { HintStrategy, HintResult } from "./types";
 
-// --- HELPERS (Reutilizamos los mismos) ---
+// --- HELPERS ---
 const getRowIndices = (row: number) =>
   Array.from({ length: 9 }, (_, i) => row * 9 + i);
 const getColIndices = (col: number) =>
   Array.from({ length: 9 }, (_, i) => i * 9 + col);
 
-export const findXWing: HintStrategy = (grid, candidates) => {
-  // El X-Wing puede formarse tomando como base FILAS o COLUMNAS.
-  // Vamos a probar primero buscando X-Wings basados en FILAS (para eliminar en Columnas).
-  // Luego, si no encontramos nada, podríamos buscar en COLUMNAS (para eliminar en Filas).
-
+export const findXWing: HintStrategy = (
+  grid,
+  internalCandidates,
+  userCandidates,
+) => {
   // FASE 1: X-Wing en FILAS (Elimina en Columnas)
   for (let num = 1; num <= 9; num++) {
-    // 1. Buscamos en qué filas el número 'num' aparece EXACTAMENTE 2 veces.
     const possibleRows: { rowIndex: number; cols: number[] }[] = [];
 
+    // 1. Buscamos filas donde el número aparece exactamente 2 veces
     for (let r = 0; r < 9; r++) {
       const rowIndices = getRowIndices(r);
-      // Filtramos celdas vacías que tengan el candidato 'num'
       const colsWithNum = rowIndices
-        .map((idx) => idx % 9) // Nos quedamos solo con el índice de columna (0-8)
+        .map((idx) => idx % 9)
         .filter((c) => {
           const idx = r * 9 + c;
-          return grid[idx] === null && candidates[idx].includes(num);
+          return grid[idx] === null && internalCandidates[idx].includes(num);
         });
 
       if (colsWithNum.length === 2) {
@@ -31,52 +31,97 @@ export const findXWing: HintStrategy = (grid, candidates) => {
       }
     }
 
-    // 2. Buscamos dos filas que tengan el candidato en las MISMAS dos columnas
+    // 2. Buscamos dos filas que compartan las mismas columnas
     for (let i = 0; i < possibleRows.length; i++) {
       for (let j = i + 1; j < possibleRows.length; j++) {
         const rowA = possibleRows[i];
         const rowB = possibleRows[j];
 
-        // ¿Están alineados? (Las columnas deben ser idénticas)
         if (rowA.cols[0] === rowB.cols[0] && rowA.cols[1] === rowB.cols[1]) {
           const col1 = rowA.cols[0];
           const col2 = rowA.cols[1];
 
-          // 3. VERIFICACIÓN: ¿Podemos eliminar algo en esas columnas?
-          // (Buscamos en las columnas col1 y col2, pero NO en las filas rowA y rowB)
+          // 3. Verificamos si podemos eliminar algo en esas columnas
           let candidatesToEliminate: number[] = [];
 
-          // Recorremos las dos columnas afectadas
           [col1, col2].forEach((c) => {
             const colIndices = getColIndices(c);
             colIndices.forEach((idx) => {
               const r = Math.floor(idx / 9);
-              // Si NO es una de las filas base del X-Wing
               if (r !== rowA.rowIndex && r !== rowB.rowIndex) {
-                if (grid[idx] === null && candidates[idx].includes(num)) {
+                if (
+                  grid[idx] === null &&
+                  internalCandidates[idx].includes(num)
+                ) {
                   candidatesToEliminate.push(idx);
                 }
               }
             });
           });
 
+          // Si encontramos celdas para limpiar, ¡Armamos la pista de 4 pasos!
           if (candidatesToEliminate.length > 0) {
-            const rA = rowA.rowIndex + 1;
-            const rB = rowB.rowIndex + 1;
-            const cA = col1 + 1;
-            const cB = col2 + 1;
+            const rA = rowA.rowIndex;
+            const rB = rowB.rowIndex;
+            const cA = col1;
+            const cB = col2;
+
+            // Las 4 esquinas del rectángulo del X-Wing
+            const corners = [
+              rA * 9 + cA,
+              rA * 9 + cB,
+              rB * 9 + cA,
+              rB * 9 + cB,
+            ];
+
+            // Celdas de apoyo para pintar
+            const rowCells = [...getRowIndices(rA), ...getRowIndices(rB)];
+            const affectedCols = Array.from(
+              new Set([...getColIndices(cA), ...getColIndices(cB)]),
+            ).filter((idx) => !corners.includes(idx)); // Quitamos las esquinas para no sobreescribir colores
 
             return {
-              type: "X-Wing",
-              cellIdx: rowA.rowIndex * 9 + col1, // Foco en la esquina superior izquierda
-              value: null,
-              candidates: [num],
-              levels: {
-                1: `He detectado un patrón "X-Wing" con el número ${num}.`,
-                2: `Mira las filas ${rA} y ${rB}. El número ${num} solo aparece dos veces en cada una y están alineados.`,
-                3: `El ${num} debe ir obligatoriamente en una de las esquinas de este rectángulo (C${cA} o C${cB}).`,
-                4: `Esto significa que ninguna OTRA celda de las columnas ${cA} y ${cB} puede tener un ${num}.`,
-                5: `¡Elimina el candidato ${num} de todas las celdas de las columnas ${cA} y ${cB} (excepto las del rectángulo)!`,
+              found: true,
+              type: "X-WING (Filas)",
+              totalSteps: 4, // <-- Nuestra variable dinámica de pasos
+              steps: [
+                {
+                  message: `He detectado un patrón "X-Wing" con el número ${num}.`,
+                  highlights: {
+                    primaryCells: corners,
+                    secondaryCells: [],
+                    focusNumber: num,
+                  },
+                },
+                {
+                  message: `Mira las filas ${rA + 1} y ${rB + 1}. El número ${num} solo aparece dos veces en cada una y están perfectamente alineados.`,
+                  highlights: {
+                    primaryCells: corners,
+                    secondaryCells: rowCells,
+                    focusNumber: num,
+                  },
+                },
+                {
+                  message: `Esto significa que el ${num} formará una 'X' cruzada. Ninguna OTRA celda en esas dos columnas puede tener un ${num}.`,
+                  highlights: {
+                    primaryCells: corners,
+                    secondaryCells: affectedCols,
+                    focusNumber: num,
+                  },
+                },
+                {
+                  message: `¡Elimina el candidato ${num} de las celdas resaltadas en esas columnas!`,
+                  highlights: {
+                    primaryCells: candidatesToEliminate,
+                    secondaryCells: corners,
+                    focusNumber: num,
+                  },
+                },
+              ],
+              action: {
+                type: "REMOVE_CANDIDATE",
+                cells: candidatesToEliminate,
+                value: num,
               },
             };
           }
@@ -86,7 +131,6 @@ export const findXWing: HintStrategy = (grid, candidates) => {
   }
 
   // FASE 2: X-Wing en COLUMNAS (Elimina en Filas)
-  // (La lógica es simétrica, pero invertimos filas por columnas)
   for (let num = 1; num <= 9; num++) {
     const possibleCols: { colIndex: number; rows: number[] }[] = [];
 
@@ -96,7 +140,7 @@ export const findXWing: HintStrategy = (grid, candidates) => {
         .map((idx) => Math.floor(idx / 9))
         .filter((r) => {
           const idx = r * 9 + c;
-          return grid[idx] === null && candidates[idx].includes(num);
+          return grid[idx] === null && internalCandidates[idx].includes(num);
         });
 
       if (rowsWithNum.length === 2) {
@@ -112,6 +156,7 @@ export const findXWing: HintStrategy = (grid, candidates) => {
         if (colA.rows[0] === colB.rows[0] && colA.rows[1] === colB.rows[1]) {
           const row1 = colA.rows[0];
           const row2 = colA.rows[1];
+
           let candidatesToEliminate: number[] = [];
 
           [row1, row2].forEach((r) => {
@@ -119,7 +164,10 @@ export const findXWing: HintStrategy = (grid, candidates) => {
             rowIndices.forEach((idx) => {
               const c = idx % 9;
               if (c !== colA.colIndex && c !== colB.colIndex) {
-                if (grid[idx] === null && candidates[idx].includes(num)) {
+                if (
+                  grid[idx] === null &&
+                  internalCandidates[idx].includes(num)
+                ) {
                   candidatesToEliminate.push(idx);
                 }
               }
@@ -127,17 +175,64 @@ export const findXWing: HintStrategy = (grid, candidates) => {
           });
 
           if (candidatesToEliminate.length > 0) {
+            const cA = colA.colIndex;
+            const cB = colB.colIndex;
+            const rA = row1;
+            const rB = row2;
+
+            const corners = [
+              rA * 9 + cA,
+              rA * 9 + cB,
+              rB * 9 + cA,
+              rB * 9 + cB,
+            ];
+            const colCells = [...getColIndices(cA), ...getColIndices(cB)];
+            const affectedRows = Array.from(
+              new Set([...getRowIndices(rA), ...getRowIndices(rB)]),
+            ).filter((idx) => !corners.includes(idx));
+
             return {
-              type: "X-Wing",
-              cellIdx: row1 * 9 + colA.colIndex,
-              value: null,
-              candidates: [num],
-              levels: {
-                1: `He detectado un patrón "X-Wing" (Vertical) con el número ${num}.`,
-                2: `Mira las columnas ${colA.colIndex + 1} y ${colB.colIndex + 1}.`,
-                3: `El ${num} está alineado en las filas ${row1 + 1} y ${row2 + 1}.`,
-                4: `El ${num} debe estar en una de esas intersecciones, bloqueando el resto de las filas.`,
-                5: `¡Elimina el candidato ${num} del resto de las filas ${row1 + 1} y ${row2 + 1}!`,
+              found: true,
+              type: "X-WING (Columnas)",
+              totalSteps: 4,
+              steps: [
+                {
+                  message: `He detectado un patrón "X-Wing" vertical con el número ${num}.`,
+                  highlights: {
+                    primaryCells: corners,
+                    secondaryCells: [],
+                    focusNumber: num,
+                  },
+                },
+                {
+                  message: `Mira las columnas ${cA + 1} y ${cB + 1}. El número ${num} solo aparece dos veces en cada una y están alineados.`,
+                  highlights: {
+                    primaryCells: corners,
+                    secondaryCells: colCells,
+                    focusNumber: num,
+                  },
+                },
+                {
+                  message: `El ${num} debe estar en una de esas intersecciones, bloqueando el resto de las celdas en esas filas horizontales.`,
+                  highlights: {
+                    primaryCells: corners,
+                    secondaryCells: affectedRows,
+                    focusNumber: num,
+                  },
+                },
+                {
+                  message: `¡Elimina el candidato ${num} de las celdas resaltadas en esas filas!`,
+                  highlights: {
+                    primaryCells: candidatesToEliminate,
+                    secondaryCells: corners,
+                    focusNumber: num,
+                  },
+                },
+              ],
+              action: {
+                type: "REMOVE_CANDIDATE",
+                cells: candidatesToEliminate,
+                value: num,
               },
             };
           }
@@ -146,5 +241,6 @@ export const findXWing: HintStrategy = (grid, candidates) => {
     }
   }
 
+  // Si no encontró nada, devuelve null y el manager pasará a la siguiente técnica
   return null;
 };

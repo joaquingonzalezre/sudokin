@@ -9,7 +9,11 @@ import {
 } from "../logic/candidateManager";
 import { getCompletedNumbers } from "../utils/numberTracker";
 import { useGameMemory } from "../hooks/useGameMemory";
-import { getHint, HintData } from "../logic/hintManager";
+
+// --- PISTAS DINÁMICAS ---
+import { HintResult, HighlightInstruction } from "../logic/hints/types";
+import { getHint } from "../logic/hintManager";
+
 import { useGameHistory } from "../hooks/useGameHistory";
 import { getRandomPuzzle, Difficulty } from "../data/puzzles";
 import { scanFilteredDigits } from "../services/ocrService";
@@ -20,11 +24,13 @@ import {
   hasInk,
 } from "../utils/imageTools";
 
+// --- GUARDADO DE SUDOKUS IMPORTADOS ---
+import { guardarSudokuImportado } from "../utils/importsudokus";
+
 // Importamos los paneles
 import ControlPad from "./ControlPad";
 import ControlTools from "./ControlTools";
 
-// --- TIPOS ---
 type SudokuGridType = (number | null)[];
 
 // --- ICONOS ---
@@ -186,11 +192,6 @@ const Modal = ({
   </div>
 );
 
-type VisualHintType = {
-  mode: "none" | "row" | "col" | "box" | "cell" | "value";
-  indexOrValue: number | null;
-};
-
 export default function SudokuBoard() {
   const emptyGrid = Array(81).fill(0);
 
@@ -212,27 +213,29 @@ export default function SudokuBoard() {
   const [inputMode, setInputMode] = useState<"normal" | "candidate">("normal");
   const [showCandidates, setShowCandidates] = useState(false);
   const [autoPauseEnabled, setAutoPauseEnabled] = useState(true);
-
-  // --- NUEVO ESTADO PARA NOTAS INTELIGENTES ---
   const [isSmartNotes, setIsSmartNotes] = useState(false);
 
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ==========================================
+  // 🧠 ESTADOS DE PISTAS DINÁMICAS
+  // ==========================================
+  const defaultHighlights: HighlightInstruction = {
+    primaryCells: [],
+    secondaryCells: [],
+    focusNumber: null,
+  };
+  const [highlights, setHighlights] =
+    useState<HighlightInstruction>(defaultHighlights);
   const [hintState, setHintState] = useState<{
     active: boolean;
-    level: number;
-    data: HintData | null;
-  }>({ active: false, level: 0, data: null });
-  const [visualHint, setVisualHint] = useState<VisualHintType>({
-    mode: "none",
-    indexOrValue: null,
-  });
+    currentStep: number;
+    data: HintResult | null;
+  }>({ active: false, currentStep: 0, data: null });
 
-  // --- CALCULAMOS LOS NÚMEROS COMPLETADOS ---
   const completedNumbers = getCompletedNumbers(grid);
 
-  // --- LA MAGIA DE LA MEMORIA EN UNA SOLA LÍNEA ---
   useGameMemory({
     initialPuzzle,
     setInitialPuzzle,
@@ -251,16 +254,10 @@ export default function SudokuBoard() {
     setShowCandidates,
   });
 
-  const triggerVisualHint = (
-    mode: VisualHintType["mode"],
-    indexOrValue: number,
-  ) => {
-    if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current);
-    setVisualHint({ mode, indexOrValue });
-    hintTimeoutRef.current = setTimeout(() => {
-      setVisualHint({ mode: "none", indexOrValue: null });
-    }, 2000);
-  };
+  const cancelHint = useCallback(() => {
+    setHintState({ active: false, currentStep: 0, data: null });
+    setHighlights(defaultHighlights);
+  }, []);
 
   const handleResetCurrent = () => {
     if (!isRunning && initialPuzzle.every((n) => n === 0)) return;
@@ -277,26 +274,25 @@ export default function SudokuBoard() {
     setIsPaused(false);
     setIsGameWon(false);
     setSelectedIdx(null);
-    setHintState({ active: false, level: 0, data: null });
-    setVisualHint({ mode: "none", indexOrValue: null });
+    cancelHint();
   };
 
   const handleNewGame = (difficulty: Difficulty) => {
     const hasNumbers = grid.some((n) => n !== null);
     if (hasNumbers && !isGameWon) {
-      const confirm = window.confirm(
-        `¿Iniciar nuevo juego nivel ${difficulty.toUpperCase()}? Se perderá el progreso actual.`,
-      );
-      if (!confirm) return;
+      if (
+        !window.confirm(
+          `¿Iniciar nuevo juego nivel ${difficulty.toUpperCase()}? Se perderá el progreso actual.`,
+        )
+      )
+        return;
     }
     const newPuzzleNumbers = getRandomPuzzle(difficulty);
-    const hasData = newPuzzleNumbers.some((n) => n !== 0);
-    if (!hasData) {
-      alert(
-        `⚠️ Aún no hay puzzles cargados para la dificultad: ${difficulty}.`,
-      );
+    if (!newPuzzleNumbers.some((n) => n !== 0)) {
+      alert(`⚠️ Aún no hay puzzles cargados.`);
       return;
     }
+
     setInitialPuzzle(newPuzzleNumbers);
     const newGrid = newPuzzleNumbers.map((n) => (n === 0 ? null : n));
     setGrid(newGrid);
@@ -307,135 +303,149 @@ export default function SudokuBoard() {
     setIsRunning(true);
     setSelectedIdx(null);
     setShowCandidates(false);
-    setHintState({ active: false, level: 0, data: null });
-    setVisualHint({ mode: "none", indexOrValue: null });
+    cancelHint();
   };
 
-  // --- LÓGICA DE PISTAS CORREGIDA (Híbrida y Segura) ---
+  // ========================================================
+  // 🎓 MOTOR DE PISTAS (Con el fix de SmartNotes)
+  // ========================================================
   const handleHint = useCallback(() => {
     if (isPaused || isGameWon) return;
-    let currentData = hintState.data;
-    let nextLevel = hintState.level + 1;
 
-    if (!hintState.active || !currentData) {
+    if (!hintState.active || !hintState.data) {
       const mathCandidates = calculateAllCandidates(grid);
-      const isBroken = mathCandidates.some(
-        (c, i) => grid[i] === null && c.length === 0,
-      );
-      if (isBroken) {
+      if (mathCandidates.some((c, i) => grid[i] === null && c.length === 0)) {
         alert(
-          "⚠️ El tablero parece tener un error (una celda se quedó sin posibilidades). Revisa los números ingresados.",
+          "⚠️ El tablero tiene un error lógico (una celda vacía se quedó sin posibilidades). Revisa tus movimientos.",
         );
         return;
       }
-      const hybridCandidates = mathCandidates.map((math, i) => {
-        const user = candidatesGrid[i];
-        if (grid[i] !== null) return [];
-        if (user.length > 0) {
-          const validUserNotes = user.filter((c) => math.includes(c));
-          if (validUserNotes.length > 0) return validUserNotes;
-        }
-        return math;
-      });
 
-      currentData = getHint(grid, hybridCandidates, candidatesGrid);
-      nextLevel = 1;
-
-      if (currentData.type === "none") {
-        alert(
-          "🤔 No veo jugadas lógicas simples basándome en tus notas actuales.",
-        );
+      const result = getHint(grid, mathCandidates, candidatesGrid);
+      if (!result.found) {
+        alert(result.steps[0].message);
         return;
       }
-      if (currentData.type === "error") {
-        alert(`⚠️ ERROR: ${currentData.levels[1]}`);
-        return;
-      }
-      setHintState({ active: true, level: 1, data: currentData });
+
+      setHintState({ active: true, currentStep: 0, data: result });
+      setHighlights(result.steps[0].highlights);
     } else {
-      if (hintState.level >= 5) nextLevel = 5;
-      else setHintState((prev) => ({ ...prev, level: nextLevel }));
-    }
+      const nextStep = hintState.currentStep + 1;
 
-    if (currentData.cellIdx !== null && currentData.value !== null) {
-      const rowIdx = Math.floor(currentData.cellIdx / 9);
-      const colIdx = currentData.cellIdx % 9;
-      const boxRow = Math.floor(rowIdx / 3);
-      const boxCol = Math.floor(colIdx / 3);
-      switch (nextLevel) {
-        case 1:
-          triggerVisualHint("value", currentData.value);
-          break;
-        case 2:
-          triggerVisualHint("row", rowIdx);
-          break;
-        case 3:
-          triggerVisualHint("box", boxRow * 3 + boxCol);
-          break;
-        case 4:
-          triggerVisualHint("cell", currentData.cellIdx);
-          setSelectedIdx(currentData.cellIdx);
-          break;
-        case 5:
-          triggerVisualHint("cell", currentData.cellIdx);
-          break;
+      if (nextStep < hintState.data.totalSteps) {
+        setHintState((prev) => ({ ...prev, currentStep: nextStep }));
+        setHighlights(hintState.data!.steps[nextStep].highlights);
+      } else {
+        const action = hintState.data.action;
+        if (action) {
+          saveSnapshot(grid, candidatesGrid);
+
+          if (action.type === "PLACE_NUMBER") {
+            const newGrid = [...grid];
+            let newCandidates = [...candidatesGrid];
+
+            action.cells.forEach((idx) => {
+              newGrid[idx] = action.value!;
+              newCandidates[idx] = []; // Limpiamos la celda donde escribimos
+
+              if (isSmartNotes) {
+                const row = Math.floor(idx / 9);
+                const col = idx % 9;
+                const boxRow = Math.floor(row / 3) * 3;
+                const boxCol = Math.floor(col / 3) * 3;
+
+                for (let i = 0; i < 81; i++) {
+                  const r = Math.floor(i / 9);
+                  const c = i % 9;
+                  if (
+                    r === row ||
+                    c === col ||
+                    (Math.floor(r / 3) * 3 === boxRow &&
+                      Math.floor(c / 3) * 3 === boxCol)
+                  ) {
+                    newCandidates[i] = newCandidates[i].filter(
+                      (cand) => cand !== action.value!,
+                    );
+                  }
+                }
+              }
+            });
+
+            setGrid(newGrid);
+            setCandidatesGrid(newCandidates);
+          } else if (action.type === "REMOVE_CANDIDATE") {
+            const newCandidates = [...candidatesGrid];
+            const valuesToRemove = action.values || [action.value!];
+            action.cells.forEach((idx) => {
+              newCandidates[idx] = newCandidates[idx].filter(
+                (c) => !valuesToRemove.includes(c),
+              );
+            });
+            setCandidatesGrid(newCandidates);
+            if (!showCandidates) setShowCandidates(true);
+          } else if (action.type === "KEEP_CANDIDATES") {
+            const newCandidates = [...candidatesGrid];
+            const valuesToKeep = action.values!;
+            action.cells.forEach((idx) => {
+              newCandidates[idx] = newCandidates[idx].filter((c) =>
+                valuesToKeep.includes(c),
+              );
+            });
+            setCandidatesGrid(newCandidates);
+            if (!showCandidates) setShowCandidates(true);
+          }
+        }
+        cancelHint();
       }
     }
-  }, [isPaused, isGameWon, grid, candidatesGrid, hintState]);
+  }, [
+    isPaused,
+    isGameWon,
+    hintState,
+    grid,
+    candidatesGrid,
+    saveSnapshot,
+    isSmartNotes,
+    showCandidates,
+    cancelHint,
+  ]);
 
   // ========================================================
-  // 📸 MOTOR PRINCIPAL DE ESCANEO (Para Cámara y Ctrl+V)
+  // 📸 MOTOR OCR (Con Guardado Automático)
   // ========================================================
   const processImageFile = async (file: File) => {
     setIsScanning(true);
     setIsPaused(true);
     if (fileInputRef.current) fileInputRef.current.value = "";
-
     try {
-      console.log("🤖 Paso 1: Visión Computacional (OpenCV)...");
       const croppedGridBase64 = await findAndCropSudokuGrid(file);
-
-      console.log("🛠️ Paso 2: Cortando en 81 piezas de precisión...");
       const allPieces = await sliceImageInto81(croppedGridBase64);
-
-      console.log(
-        "🧠 Paso 3: Análisis Híbrido (Separando vacíos de números)...",
-      );
       const finalHybridGrid: number[] = Array(81).fill(0);
       const piecesForAI: string[] = [];
       const originalIndices: number[] = [];
 
       for (let i = 0; i < 81; i++) {
-        const isCellFull = await hasInk(allPieces[i]);
-        if (isCellFull) {
+        if (await hasInk(allPieces[i])) {
           piecesForAI.push(allPieces[i]);
           originalIndices.push(i);
         }
       }
+      if (piecesForAI.length === 0)
+        throw new Error("No se detectó ningún número.");
 
-      const digitsCount = piecesForAI.length;
-      console.log(
-        `📊 Resultado del filtro: ${digitsCount} casillas tienen números, ${81 - digitsCount} son vacías.`,
-      );
-
-      if (digitsCount === 0) {
-        throw new Error(
-          "No se detectó ningún número en el tablero. ¿Está muy clara la imagen?",
-        );
-      }
-
-      console.log(
-        `🚀 Paso 4: Enviando collage filtrado a la IA (${digitsCount} dígitos)...`,
-      );
       const filteredCollage = await createSudokuCollage(piecesForAI);
-      const result = await scanFilteredDigits(filteredCollage, digitsCount);
+      const result = await scanFilteredDigits(
+        filteredCollage,
+        piecesForAI.length,
+      );
 
       if (result.success && result.grid.length > 0) {
-        console.log("🧩 Paso 5: Reconstruyendo el tablero final...");
-        result.grid.forEach((aiDigit, indexInAiResponse) => {
-          const realPositionOnBoard = originalIndices[indexInAiResponse];
-          finalHybridGrid[realPositionOnBoard] = aiDigit;
+        result.grid.forEach((aiDigit, idx) => {
+          finalHybridGrid[originalIndices[idx]] = aiDigit;
         });
+
+        // 💾 GUARDAMOS EN EL ARCHIVO IMPORTADOS
+        guardarSudokuImportado(finalHybridGrid);
 
         setInitialPuzzle(finalHybridGrid);
         const newGrid = finalHybridGrid.map((n: number) =>
@@ -444,48 +454,35 @@ export default function SudokuBoard() {
         setGrid(newGrid);
         setCandidatesGrid(generateEmptyCandidates(newGrid));
         setTime(0);
-        setHintState({ active: false, level: 0, data: null });
+        cancelHint();
         setIsGameWon(false);
-        setVisualHint({ mode: "none", indexOrValue: null });
         setIsRunning(true);
       } else {
-        alert(
-          "Error en el reconocimiento de IA: " +
-            (result.error || "Respuesta incompleta"),
-        );
+        alert("Error IA: " + (result.error || ""));
       }
     } catch (error: any) {
-      console.error("❌ Error en el proceso de escaneo:", error);
-      alert(error.message || "Ocurrió un error al procesar la imagen.");
+      alert(error.message || "Error al procesar.");
     } finally {
       setIsScanning(false);
       setIsPaused(false);
     }
   };
 
-  // Botón de subir archivo (Icono de cámara)
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processImageFile(file);
   };
 
-  // ==========================================
-  // 📋 ESCUCHADOR DEL PORTAPAPELES (CTRL + V)
-  // ==========================================
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       if (isScanning) return;
       const items = e.clipboardData?.items;
       if (!items) return;
-
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.indexOf("image") !== -1) {
           const file = items[i].getAsFile();
           if (file) {
             e.preventDefault();
-            console.log(
-              "📸 Imagen detectada en el portapapeles. Iniciando escaneo...",
-            );
             processImageFile(file);
             break;
           }
@@ -496,57 +493,71 @@ export default function SudokuBoard() {
     return () => window.removeEventListener("paste", handlePaste);
   }, [isScanning]);
 
+  // --- HANDLERS COMUNES ---
   const handleUndo = useCallback(() => {
     if (isPaused || isGameWon) return;
-    const previousState = undoLastMove();
-    if (previousState) {
-      setGrid(previousState.grid);
-      setCandidatesGrid(previousState.candidates);
-      setHintState({ active: false, level: 0, data: null });
-      setVisualHint({ mode: "none", indexOrValue: null });
+    const prev = undoLastMove();
+    if (prev) {
+      setGrid(prev.grid);
+      setCandidatesGrid(prev.candidates);
+      cancelHint();
     }
-  }, [undoLastMove, isPaused, isGameWon]);
+  }, [undoLastMove, isPaused, isGameWon, cancelHint]);
 
   const handleAutoCandidates = useCallback(() => {
     if (isPaused || isGameWon) return;
     saveSnapshot(grid, candidatesGrid);
     setCandidatesGrid(calculateAllCandidates(grid));
     setShowCandidates(true);
-    setHintState({ active: false, level: 0, data: null });
-  }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot]);
+    cancelHint();
+  }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot, cancelHint]);
 
-  // --- HANDLE INPUT CON "SMART NOTES" ---
+  // ========================================================
+  // ✍️ ENTRADA MANUAL (Con el fix de SmartNotes)
+  // ========================================================
   const handleInput = useCallback(
     (num: number) => {
       if (isPaused || isGameWon || selectedIdx === null) return;
       if (initialPuzzle[selectedIdx] !== 0) return;
 
       saveSnapshot(grid, candidatesGrid);
-      setHintState({ active: false, level: 0, data: null });
-      setVisualHint({ mode: "none", indexOrValue: null });
+      cancelHint();
 
       if (inputMode === "normal") {
         const newGrid = [...grid];
         newGrid[selectedIdx] = num;
         setGrid(newGrid);
 
+        let newCandidates = [...candidatesGrid];
+        newCandidates[selectedIdx] = [];
+
         if (isSmartNotes) {
-          const newCandidates = calculateAllCandidates(newGrid);
-          setCandidatesGrid(newCandidates);
-          if (!showCandidates) setShowCandidates(true);
-        } else {
-          const newCandidates = [...candidatesGrid];
-          newCandidates[selectedIdx] = [];
-          setCandidatesGrid(newCandidates);
+          const row = Math.floor(selectedIdx / 9);
+          const col = selectedIdx % 9;
+          const boxRow = Math.floor(row / 3) * 3;
+          const boxCol = Math.floor(col / 3) * 3;
+
+          for (let i = 0; i < 81; i++) {
+            const r = Math.floor(i / 9);
+            const c = i % 9;
+            if (
+              r === row ||
+              c === col ||
+              (Math.floor(r / 3) * 3 === boxRow &&
+                Math.floor(c / 3) * 3 === boxCol)
+            ) {
+              newCandidates[i] = newCandidates[i].filter(
+                (cand) => cand !== num,
+              );
+            }
+          }
         }
+        setCandidatesGrid(newCandidates);
       } else {
         if (grid[selectedIdx] === null) {
-          const newCandidates = [...candidatesGrid];
-          newCandidates[selectedIdx] = toggleCandidate(
-            newCandidates[selectedIdx],
-            num,
-          );
-          setCandidatesGrid(newCandidates);
+          const newC = [...candidatesGrid];
+          newC[selectedIdx] = toggleCandidate(newC[selectedIdx], num);
+          setCandidatesGrid(newC);
           if (!showCandidates) setShowCandidates(true);
         }
       }
@@ -562,6 +573,7 @@ export default function SudokuBoard() {
       saveSnapshot,
       showCandidates,
       isSmartNotes,
+      cancelHint,
     ],
   );
 
@@ -569,8 +581,7 @@ export default function SudokuBoard() {
     if (isPaused || isGameWon || selectedIdx === null) return;
     if (initialPuzzle[selectedIdx] !== 0) return;
     saveSnapshot(grid, candidatesGrid);
-    setHintState({ active: false, level: 0, data: null });
-    setVisualHint({ mode: "none", indexOrValue: null });
+    cancelHint();
     const newGrid = [...grid];
     newGrid[selectedIdx] = null;
     setGrid(newGrid);
@@ -582,17 +593,17 @@ export default function SudokuBoard() {
     isGameWon,
     initialPuzzle,
     saveSnapshot,
+    cancelHint,
   ]);
 
   const handleClearCandidates = useCallback(() => {
     if (isPaused || isGameWon) return;
     saveSnapshot(grid, candidatesGrid);
+    cancelHint();
     setCandidatesGrid(Array.from({ length: 81 }, () => []));
-    setHintState({ active: false, level: 0, data: null });
-  }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot]);
+  }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot, cancelHint]);
 
   const handlePauseToggle = () => setIsPaused(!isPaused);
-
   const handleRestart = () => {
     const initialCleaned = initialPuzzle.map((n) => (n === 0 ? null : n));
     setGrid(initialCleaned);
@@ -603,8 +614,7 @@ export default function SudokuBoard() {
     setIsRunning(true);
     setSelectedIdx(null);
     setShowCandidates(false);
-    setHintState({ active: false, level: 0, data: null });
-    setVisualHint({ mode: "none", indexOrValue: null });
+    cancelHint();
   };
 
   const formatTime = (seconds: number) => {
@@ -625,13 +635,12 @@ export default function SudokuBoard() {
       for (let j = 0; j < 81; j++) {
         if (i === j) continue;
         if (currentGrid[j] !== val) continue;
-        const targetRow = Math.floor(j / 9);
-        const targetCol = j % 9;
+        const tRow = Math.floor(j / 9);
+        const tCol = j % 9;
         if (
-          row === targetRow ||
-          col === targetCol ||
-          (Math.floor(targetRow / 3) === boxRow &&
-            Math.floor(targetCol / 3) === boxCol)
+          row === tRow ||
+          col === tCol ||
+          (Math.floor(tRow / 3) === boxRow && Math.floor(tCol / 3) === boxCol)
         )
           conflictSet.add(i);
       }
@@ -739,12 +748,15 @@ export default function SudokuBoard() {
       >
         {/* PANEL IZQUIERDO */}
         <ControlTools
-          hintState={hintState}
+          hintState={hintState as any}
           onNewGame={handleNewGame}
           onHint={handleHint}
+          onCancelHint={cancelHint}
+          onImportClick={() => fileInputRef.current?.click()}
+          isScanning={isScanning}
         />
 
-        {/* TABLERO */}
+        {/* TABLERO CENTRAL */}
         <div
           style={{
             display: "grid",
@@ -794,37 +806,17 @@ export default function SudokuBoard() {
                   if (sVal !== null && val === sVal) isSameValue = true;
                 }
 
+                // --- COLORES AGNÓSTICOS ---
                 let bgColor = "white";
-                let isVisualHintActive = false;
-                if (visualHint.mode !== "none") {
-                  if (
-                    visualHint.mode === "cell" &&
-                    visualHint.indexOrValue === globalIdx
-                  )
-                    isVisualHintActive = true;
-                  else if (
-                    visualHint.mode === "row" &&
-                    visualHint.indexOrValue === globalRow
-                  )
-                    isVisualHintActive = true;
-                  else if (
-                    visualHint.mode === "col" &&
-                    visualHint.indexOrValue === globalCol
-                  )
-                    isVisualHintActive = true;
-                  else if (visualHint.mode === "box") {
-                    if (
-                      visualHint.indexOrValue ===
-                      Math.floor(globalRow / 3) * 3 + Math.floor(globalCol / 3)
-                    )
-                      isVisualHintActive = true;
-                  } else if (visualHint.mode === "value") {
-                    if (val === visualHint.indexOrValue)
-                      isVisualHintActive = true;
-                  }
-                }
-
-                if (isVisualHintActive) bgColor = "#f9a8d4";
+                if (highlights.primaryCells.includes(globalIdx))
+                  bgColor = "#f472b6";
+                else if (highlights.secondaryCells.includes(globalIdx))
+                  bgColor = "#fce7f3";
+                else if (
+                  highlights.focusNumber !== null &&
+                  val === highlights.focusNumber
+                )
+                  bgColor = "#fbcfe8";
                 else if (hasConflict && !isInitial) bgColor = "#ffcccc";
                 else if (isSelected)
                   bgColor = val !== null ? "#d48200" : "#fb9b00";
@@ -917,7 +909,6 @@ export default function SudokuBoard() {
             onToggleSmartNotes={() => setIsSmartNotes(!isSmartNotes)}
             completedNumbers={completedNumbers}
           />
-
           <div
             style={{
               display: "flex",
@@ -981,41 +972,7 @@ export default function SudokuBoard() {
               >
                 {autoPauseEnabled ? <EyeIcon /> : <EyeOffIcon />}
               </button>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isScanning}
-                className={isScanning ? "animate-pulse" : ""}
-                style={{
-                  padding: "10px",
-                  borderRadius: "50%",
-                  border: "none",
-                  backgroundColor: isScanning ? "#fcd34d" : "#e5e7eb",
-                  cursor: isScanning ? "wait" : "pointer",
-                  display: "flex",
-                }}
-              >
-                <CameraIcon />
-              </button>
             </div>
-
-            {isScanning && (
-              <div
-                style={{
-                  color: "#d97706",
-                  fontWeight: "bold",
-                  fontSize: "14px",
-                }}
-              >
-                Escaneando... ☢️
-              </div>
-            )}
-            {conflicts.size > 0 && (
-              <div
-                style={{ color: "red", fontWeight: "bold", fontSize: "14px" }}
-              >
-                ⚠️ Errores detectados
-              </div>
-            )}
           </div>
         </div>
       </div>
