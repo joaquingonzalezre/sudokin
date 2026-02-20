@@ -3,15 +3,10 @@ npm run dev
 
 
 git add .
-git commit -m "diseño y logica final"        **// escribir aqui como quieras que se suba el update 
+git commit -m "proyecto final"        **// escribir aqui como quieras que se suba el update 
 git push origin main
 
 
 
 mejorar:
-1)circuro rojo cuando encuentre un error (2 8s en una fila, columna o casilla)
-2)crear evento al terminar el puzzle correctamente(sin tener error del paso anterior)
-3)pensamiento notas
-4)crear una segunda matriz llamada notas, kie no afecte directamente a la principal 
-pero kie se puedan ver sieske esta blanco esa cuadrilla en la main 
-5)pensar el undo y sus implicancion 
+cuando hayan 9 de un numero, cambiar de color el solido del boton para saber que ya no faltan de ese digito 

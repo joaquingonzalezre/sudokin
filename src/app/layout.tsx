@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import "./globals.css"; // <--- Verifica que esta línea exista
+import { Inter } from "next/font/google";
+import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Sudokin",
+  title: "SudoKin",
   description: "Un Sudoku moderno inspirado en KIN",
 };
 
@@ -13,7 +16,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <head>{/* ... tus metadatos ... */}</head>
+      <body className={inter.className}>
+        {children}
+        {/* AGREGA ESTA LÍNEA AL FINAL ANTES DE CERRAR BODY */}
+      </body>
     </html>
   );
 }

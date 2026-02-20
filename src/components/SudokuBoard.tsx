@@ -9,8 +9,14 @@ import {
 } from "../logic/candidateManager";
 import { getHint, HintData } from "../logic/hintManager";
 import { useGameHistory } from "../hooks/useGameHistory";
-import { scanSudokuImage, ScanResponse } from "../actions/solveSudokuFromImage";
 import { getRandomPuzzle, Difficulty } from "../data/puzzles";
+import { scanFilteredDigits } from "../services/ocrService";
+import {
+  sliceImageInto81,
+  createSudokuCollage,
+  findAndCropSudokuGrid,
+  hasInk, // <--- ¡NUEVO!
+} from "../utils/imageTools";
 
 // Importamos los paneles
 import ControlPad from "./ControlPad";
@@ -181,54 +187,6 @@ const Modal = ({
 type VisualHintType = {
   mode: "none" | "row" | "col" | "box" | "cell" | "value";
   indexOrValue: number | null;
-};
-
-// --- FUNCIÓN NUCLEAR: 81 CORTES ---
-const sliceImageInto81 = (file: File): Promise<string[]> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const pieces: string[] = [];
-        const cellW = img.width / 9;
-        const cellH = img.height / 9;
-        const TARGET_SIZE = 100;
-        const paddingW = cellW * 0.1;
-        const paddingH = cellH * 0.1;
-        const safeW = cellW - paddingW * 2;
-        const safeH = cellH - paddingH * 2;
-
-        for (let row = 0; row < 9; row++) {
-          for (let col = 0; col < 9; col++) {
-            const canvas = document.createElement("canvas");
-            canvas.width = TARGET_SIZE;
-            canvas.height = TARGET_SIZE;
-            const ctx = canvas.getContext("2d");
-            if (ctx) {
-              ctx.drawImage(
-                img,
-                col * cellW + paddingW,
-                row * cellH + paddingH,
-                safeW,
-                safeH,
-                0,
-                0,
-                TARGET_SIZE,
-                TARGET_SIZE,
-              );
-              pieces.push(canvas.toDataURL("image/jpeg", 0.7));
-            }
-          }
-        }
-        resolve(pieces);
-      };
-      img.onerror = reject;
-    };
-    reader.onerror = reject;
-  });
 };
 
 export default function SudokuBoard() {
@@ -419,38 +377,105 @@ export default function SudokuBoard() {
     }
   }, [isPaused, isGameWon, grid, candidatesGrid, hintState]);
 
+  // --- ORQUESTACIÓN HÍBRIDA V2 (Matemática + IA) ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     setIsScanning(true);
     setIsPaused(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
     try {
-      console.log("☢️ Iniciando corte de 81 celdas...");
-      const pieces = await sliceImageInto81(file);
-      const result: ScanResponse = await scanSudokuImage(pieces);
-      if (result.success) {
-        const newPuzzleNumbers = result.grid;
-        setInitialPuzzle(newPuzzleNumbers);
-        const newGrid = newPuzzleNumbers.map((n: number) =>
+      console.log("🤖 Paso 1: Visión Computacional (OpenCV)...");
+      const croppedGridBase64 = await findAndCropSudokuGrid(file);
+
+      console.log("🛠️ Paso 2: Cortando en 81 piezas de precisión...");
+      const allPieces = await sliceImageInto81(croppedGridBase64);
+      // ----------------------------------------------------
+      // --- EL FILTRO HÍBRIDO ---
+      console.log(
+        "🧠 Paso 3: Análisis Híbrido (Separando vacíos de números)...",
+      );
+
+      // Preparamos el tablero final lleno de CEROS
+      const finalHybridGrid: number[] = Array(81).fill(0);
+
+      // Arrays para guardar solo lo que necesita la IA
+      const piecesForAI: string[] = [];
+      const originalIndices: number[] = [];
+
+      // Analizamos cada pieza una por una con el "Portero Matemático"
+      for (let i = 0; i < 81; i++) {
+        // La función hasInk decide matemáticamente si es un 0 o no
+        const isCellFull = await hasInk(allPieces[i]);
+
+        if (isCellFull) {
+          // ¡Tiene tinta! Lo guardamos para la IA
+          piecesForAI.push(allPieces[i]);
+          originalIndices.push(i); // Recordamos dónde estaba (ej: posición 12)
+        } else {
+          // Es blanco. El matemático dice que es 0. No hacemos nada, ya es 0 en finalHybridGrid.
+          // console.log(`Casilla ${i} detectada como vacía matemáticamente.`);
+        }
+      }
+
+      const digitsCount = piecesForAI.length;
+      console.log(
+        `📊 Resultado del filtro: ${digitsCount} casillas tienen números, ${81 - digitsCount} son vacías.`,
+      );
+
+      // Si no se detectó ningún número, abortamos.
+      if (digitsCount === 0) {
+        throw new Error(
+          "No se detectó ningún número en el tablero. ¿Está muy clara la imagen?",
+        );
+      }
+
+      console.log(
+        `🚀 Paso 4: Enviando collage filtrado a la IA (${digitsCount} dígitos)...`,
+      );
+      // Creamos un collage SOLO con las piezas que tienen tinta
+      const filteredCollage = await createSudokuCollage(piecesForAI);
+
+      // ------------------------------------------------
+      // Llamamos a la nueva API que espera exactamente 'digitsCount' números
+      const result = await scanFilteredDigits(filteredCollage, digitsCount);
+
+      if (result.success && result.grid.length > 0) {
+        console.log("🧩 Paso 5: Reconstruyendo el tablero final...");
+
+        // RECONSTRUCCIÓN: Colocamos los números de la IA en sus posiciones originales
+        result.grid.forEach((aiDigit, indexInAiResponse) => {
+          const realPositionOnBoard = originalIndices[indexInAiResponse];
+          finalHybridGrid[realPositionOnBoard] = aiDigit;
+        });
+
+        // ¡Éxito! Cargamos el tablero híbrido perfecto
+        setInitialPuzzle(finalHybridGrid);
+        const newGrid = finalHybridGrid.map((n: number) =>
           n === 0 ? null : n,
         );
         setGrid(newGrid);
         setCandidatesGrid(generateEmptyCandidates(newGrid));
+
         setTime(0);
         setHintState({ active: false, level: 0, data: null });
         setIsGameWon(false);
         setVisualHint({ mode: "none", indexOrValue: null });
         setIsRunning(true);
-        alert("¡Sudoku escaneado con PRECISIÓN TOTAL!");
       } else {
-        alert("Error: " + result.error);
+        alert(
+          "Error en el reconocimiento de IA: " +
+            (result.error || "Respuesta incompleta"),
+        );
       }
-    } catch (error) {
-      alert("Ocurrió un error inesperado.");
+    } catch (error: any) {
+      console.error("❌ Error en el proceso de escaneo:", error);
+      alert(error.message || "Ocurrió un error al procesar la imagen.");
     } finally {
       setIsScanning(false);
       setIsPaused(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
