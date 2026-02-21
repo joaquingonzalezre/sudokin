@@ -15,6 +15,8 @@ interface ControlPadProps {
   smartNotesMode: boolean;
   onToggleSmartNotes: () => void;
   completedNumbers: number[];
+  onRestoreNotesClick: () => void;
+  hasManualNotesBackup: boolean;
 }
 
 export default function ControlPad({
@@ -30,6 +32,8 @@ export default function ControlPad({
   smartNotesMode,
   onToggleSmartNotes,
   completedNumbers,
+  onRestoreNotesClick,
+  hasManualNotesBackup,
 }: ControlPadProps) {
   // Estilo base para los números
   const numberBtnStyle = {
@@ -178,7 +182,7 @@ export default function ControlPad({
           </button>
         </div>
 
-        {/* FILA 2: Ver Notas | RRR | SmartNotes (3 columnas) */}
+        {/* FILA 2: Ver Notas | Mis Notas | SmartNotes (3 columnas) */}
         <div
           style={{
             display: "grid",
@@ -194,10 +198,14 @@ export default function ControlPad({
           </button>
 
           <button
-            onClick={() => alert("¡Botón RRR presionado!")}
-            style={smallActionBtnStyle}
+            onClick={onRestoreNotesClick}
+            style={{
+              ...smallActionBtnStyle,
+              backgroundColor: hasManualNotesBackup ? "#dbeafe" : "#e5e7eb",
+              color: hasManualNotesBackup ? "#1e40af" : "#374151",
+            }}
           >
-            RRR
+            {hasManualNotesBackup ? "Volver a Mis Notas" : "Mis Notas"}
           </button>
 
           <button

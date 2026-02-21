@@ -212,6 +212,11 @@ export default function SudokuBoard() {
   const [isGameWon, setIsGameWon] = useState(false);
   const [inputMode, setInputMode] = useState<"normal" | "candidate">("normal");
   const [showCandidates, setShowCandidates] = useState(false);
+
+  // NUEVO ESTADO: La memoria secreta para la Capa 1 de Notas Manuales
+  const [manualNotesBackup, setManualNotesBackup] =
+    useState<CandidateGridType | null>(null);
+
   const [autoPauseEnabled, setAutoPauseEnabled] = useState(true);
   const [isSmartNotes, setIsSmartNotes] = useState(false);
 
@@ -274,6 +279,7 @@ export default function SudokuBoard() {
     setIsPaused(false);
     setIsGameWon(false);
     setSelectedIdx(null);
+    setManualNotesBackup(null); // Limpiamos respaldo al reiniciar
     cancelHint();
   };
 
@@ -303,6 +309,7 @@ export default function SudokuBoard() {
     setIsRunning(true);
     setSelectedIdx(null);
     setShowCandidates(false);
+    setManualNotesBackup(null); // Limpiamos respaldo al juego nuevo
     cancelHint();
   };
 
@@ -457,6 +464,7 @@ export default function SudokuBoard() {
         cancelHint();
         setIsGameWon(false);
         setIsRunning(true);
+        setManualNotesBackup(null); // Limpiamos respaldo al cargar nuevo tablero
       } else {
         alert("Error IA: " + (result.error || ""));
       }
@@ -507,10 +515,58 @@ export default function SudokuBoard() {
   const handleAutoCandidates = useCallback(() => {
     if (isPaused || isGameWon) return;
     saveSnapshot(grid, candidatesGrid);
+
+    // MAGIA DE CAPAS: Si no hay un respaldo previo, guardamos tus notas actuales
+    // antes de que la IA las sobrescriba.
+    if (!manualNotesBackup) {
+      setManualNotesBackup([...candidatesGrid]);
+    }
+
     setCandidatesGrid(calculateAllCandidates(grid));
     setShowCandidates(true);
     cancelHint();
-  }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot, cancelHint]);
+  }, [
+    grid,
+    candidatesGrid,
+    isPaused,
+    isGameWon,
+    saveSnapshot,
+    cancelHint,
+    manualNotesBackup,
+  ]);
+
+  // NUEVA FUNCIÓN: Restaurar Capa 1 (Mis Notas)
+  const handleRestoreNotes = useCallback(() => {
+    if (isPaused || isGameWon) return;
+    if (!manualNotesBackup) {
+      alert(
+        "Aún no has usado 'Crear Notas', por lo que tus notas actuales ya son 'Mis Notas'.",
+      );
+      return;
+    }
+
+    saveSnapshot(grid, candidatesGrid);
+    cancelHint();
+
+    // Restauramos tus notas, pero limpiamos inteligentemente las casillas
+    // que ya resolviste mientras estabas en la Capa de la IA.
+    const restored = manualNotesBackup.map((notes, i) =>
+      grid[i] !== null ? [] : notes,
+    );
+
+    setCandidatesGrid(restored);
+    setManualNotesBackup(null); // Eliminamos la capa de la IA y volvemos a la tuya
+    if (!showCandidates) setShowCandidates(true);
+  }, [
+    grid,
+    candidatesGrid,
+    manualNotesBackup,
+    isPaused,
+    isGameWon,
+    saveSnapshot,
+    showCandidates,
+    cancelHint,
+  ]);
 
   // ========================================================
   // ✍️ ENTRADA MANUAL (Con el fix de SmartNotes)
@@ -601,6 +657,7 @@ export default function SudokuBoard() {
     saveSnapshot(grid, candidatesGrid);
     cancelHint();
     setCandidatesGrid(Array.from({ length: 81 }, () => []));
+    setManualNotesBackup(null); // Reseteamos también la capa de respaldo
   }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot, cancelHint]);
 
   const handlePauseToggle = () => setIsPaused(!isPaused);
@@ -614,6 +671,7 @@ export default function SudokuBoard() {
     setIsRunning(true);
     setSelectedIdx(null);
     setShowCandidates(false);
+    setManualNotesBackup(null); // Limpiamos respaldo al reiniciar
     cancelHint();
   };
 
@@ -908,6 +966,8 @@ export default function SudokuBoard() {
             smartNotesMode={isSmartNotes}
             onToggleSmartNotes={() => setIsSmartNotes(!isSmartNotes)}
             completedNumbers={completedNumbers}
+            onRestoreNotesClick={handleRestoreNotes}
+            hasManualNotesBackup={manualNotesBackup !== null}
           />
           <div
             style={{
