@@ -2,9 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import { NextResponse } from "next/server";
 
 // Conectamos con la base de datos de Neon usando tu variable de entorno
-const sql = neon(
-  "postgresql://neondb_owner:npg_rUXH2njZ9RLJ@ep-ancient-bread-ac40cttc-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require",
-);
+const sql = neon(process.env.DATABASE_URL!);
 
 // 1. OBTENER LOS SUDOKUS GLOBALES (GET)
 export async function GET() {

@@ -14,7 +14,6 @@ interface ControlPadProps {
   setShowCandidates: React.Dispatch<React.SetStateAction<boolean>>;
   smartNotesMode: boolean;
   onToggleSmartNotes: () => void;
-  // --- NUEVO: RECIBIMOS LA LISTA DE NÚMEROS COMPLETADOS ---
   completedNumbers: number[];
 }
 
@@ -30,7 +29,7 @@ export default function ControlPad({
   setShowCandidates,
   smartNotesMode,
   onToggleSmartNotes,
-  completedNumbers, // Lo extraemos aquí
+  completedNumbers,
 }: ControlPadProps) {
   // Estilo base para los números
   const numberBtnStyle = {
@@ -45,7 +44,7 @@ export default function ControlPad({
     transition: "all 0.2s",
   };
 
-  // Estilo base gris para acciones
+  // Estilo base gris para acciones (Filas de 2 columnas)
   const actionBtnStyle = {
     backgroundColor: "#e5e7eb",
     border: "none",
@@ -58,6 +57,14 @@ export default function ControlPad({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    textAlign: "center" as const,
+  };
+
+  // Estilo un poco más pequeño para la fila de 3 columnas
+  const smallActionBtnStyle = {
+    ...actionBtnStyle,
+    fontSize: "12px", // Letra más pequeña para que encajen los 3
+    padding: "15px 2px",
   };
 
   const autoBtnStyle = {
@@ -125,17 +132,15 @@ export default function ControlPad({
         }}
       >
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => {
-          // Revisamos si el número actual ya está 9 veces en el tablero
           const isCompleted = completedNumbers.includes(num);
 
           return (
             <button
               key={num}
               onClick={() => onNumberClick(num)}
-              disabled={isCompleted} // Desactivamos el botón si ya está completado
+              disabled={isCompleted}
               style={{
                 ...numberBtnStyle,
-                // Si está completado, se vuelve gris opaco; si no, es blanco normal
                 backgroundColor: isCompleted ? "#e5e7eb" : "white",
                 color: isCompleted ? "#9ca3af" : "#1f2937",
                 cursor: isCompleted ? "not-allowed" : "pointer",
@@ -155,42 +160,70 @@ export default function ControlPad({
         })}
       </div>
 
-      {/* 3. BOTONES DE ACCIÓN */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "10px",
-        }}
-      >
-        <button onClick={onUndoClick} style={actionBtnStyle}>
-          Undo
-        </button>
-        <button onClick={onDeleteClick} style={actionBtnStyle}>
-          Borrar
-        </button>
-
-        <button
-          onClick={() => setShowCandidates(!showCandidates)}
-          style={actionBtnStyle}
+      {/* 3. BOTONES DE ACCIÓN (DIVIDIDOS EN 3 FILAS INDEPENDIENTES) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {/* FILA 1: Undo y Borrar (2 columnas) */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: "10px",
+          }}
         >
-          {showCandidates ? "Ocultar Notas" : "Ver Notas"}
-        </button>
-        <button onClick={onClearCandidatesClick} style={actionBtnStyle}>
-          Limpiar Candidatos
-        </button>
+          <button onClick={onUndoClick} style={actionBtnStyle}>
+            Undo
+          </button>
+          <button onClick={onDeleteClick} style={actionBtnStyle}>
+            Borrar
+          </button>
+        </div>
 
-        <button onClick={onCreateCandidates} style={autoBtnStyle}>
-          Crear Notas
-        </button>
-
-        <button
-          onClick={onToggleSmartNotes}
-          style={actionBtnStyle}
-          title="Recalcular notas automáticamente al escribir"
+        {/* FILA 2: Ver Notas | RRR | SmartNotes (3 columnas) */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "10px",
+          }}
         >
-          SmartNotes: {smartNotesMode ? "ON" : "OFF"}
-        </button>
+          <button
+            onClick={() => setShowCandidates(!showCandidates)}
+            style={smallActionBtnStyle}
+          >
+            {showCandidates ? "Ocultar Notas" : "Ver Notas"}
+          </button>
+
+          <button
+            onClick={() => alert("¡Botón RRR presionado!")}
+            style={smallActionBtnStyle}
+          >
+            RRR
+          </button>
+
+          <button
+            onClick={onToggleSmartNotes}
+            style={smallActionBtnStyle}
+            title="Recalcular notas automáticamente al escribir"
+          >
+            SmartNotes: {smartNotesMode ? "ON" : "OFF"}
+          </button>
+        </div>
+
+        {/* FILA 3: Crear Notas y Limpiar Notas (2 columnas) */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: "10px",
+          }}
+        >
+          <button onClick={onCreateCandidates} style={autoBtnStyle}>
+            Crear Notas
+          </button>
+          <button onClick={onClearCandidatesClick} style={actionBtnStyle}>
+            Limpiar Notas
+          </button>
+        </div>
       </div>
     </div>
   );

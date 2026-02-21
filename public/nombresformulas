@@ -5,8 +5,3 @@ npm run dev
 git add .
 git commit -m "proyecto final"        **// escribir aqui como quieras que se suba el update 
 git push origin main
-
-
-
-mejorar:
-cuando hayan 9 de un numero, cambiar de color el solido del boton para saber que ya no faltan de ese digito 
