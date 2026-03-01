@@ -1,239 +1,185 @@
-// src/logic/hints/xWing.ts
-import { HintStrategy, HintResult } from "./types";
+import { HintStrategy } from "./types";
 
-// --- HELPERS ---
 const getRowIndices = (row: number) =>
   Array.from({ length: 9 }, (_, i) => row * 9 + i);
 const getColIndices = (col: number) =>
   Array.from({ length: 9 }, (_, i) => i * 9 + col);
 
-export const findXWing: HintStrategy = (
-  grid,
-  internalCandidates,
-  userCandidates,
-) => {
-  // FASE 1: X-Wing en FILAS (Elimina en Columnas)
+export const findXWing: HintStrategy = (grid, internalCandidates) => {
+  // Evaluamos número por número, del 1 al 9
   for (let num = 1; num <= 9; num++) {
-    const possibleRows: { rowIndex: number; cols: number[] }[] = [];
+    // ==========================================
+    // 1. X-WING EN FILAS (Limpia Columnas)
+    // ==========================================
+    const rowPositions: { row: number; cols: number[]; cells: number[] }[] = [];
 
-    // 1. Buscamos filas donde el número aparece exactamente 2 veces
     for (let r = 0; r < 9; r++) {
-      const rowIndices = getRowIndices(r);
-      const colsWithNum = rowIndices
-        .map((idx) => idx % 9)
-        .filter((c) => {
-          const idx = r * 9 + c;
-          return grid[idx] === null && internalCandidates[idx].includes(num);
-        });
+      const rIndices = getRowIndices(r);
+      const cellsWithNum = rIndices.filter(
+        (idx) => grid[idx] === null && internalCandidates[idx].includes(num),
+      );
 
-      if (colsWithNum.length === 2) {
-        possibleRows.push({ rowIndex: r, cols: colsWithNum });
+      // Si el número solo puede ir en EXACTAMENTE 2 celdas de esta fila, lo guardamos
+      if (cellsWithNum.length === 2) {
+        rowPositions.push({
+          row: r,
+          cols: [cellsWithNum[0] % 9, cellsWithNum[1] % 9],
+          cells: cellsWithNum,
+        });
       }
     }
 
-    // 2. Buscamos dos filas que compartan las mismas columnas
-    for (let i = 0; i < possibleRows.length; i++) {
-      for (let j = i + 1; j < possibleRows.length; j++) {
-        const rowA = possibleRows[i];
-        const rowB = possibleRows[j];
+    // Buscamos 2 filas que compartan exactamente las mismas 2 columnas
+    for (let i = 0; i < rowPositions.length - 1; i++) {
+      for (let j = i + 1; j < rowPositions.length; j++) {
+        const r1 = rowPositions[i];
+        const r2 = rowPositions[j];
 
-        if (rowA.cols[0] === rowB.cols[0] && rowA.cols[1] === rowB.cols[1]) {
-          const col1 = rowA.cols[0];
-          const col2 = rowA.cols[1];
+        if (r1.cols[0] === r2.cols[0] && r1.cols[1] === r2.cols[1]) {
+          const col1 = r1.cols[0];
+          const col2 = r1.cols[1];
+          const col1Indices = getColIndices(col1);
+          const col2Indices = getColIndices(col2);
 
-          // 3. Verificamos si podemos eliminar algo en esas columnas
-          let candidatesToEliminate: number[] = [];
+          // Buscamos si hay "basura" (el mismo número) en el resto de esas columnas
+          const cellsToClear = [...col1Indices, ...col2Indices].filter(
+            (idx) =>
+              grid[idx] === null &&
+              internalCandidates[idx].includes(num) &&
+              Math.floor(idx / 9) !== r1.row &&
+              Math.floor(idx / 9) !== r2.row,
+          );
 
-          [col1, col2].forEach((c) => {
-            const colIndices = getColIndices(c);
-            colIndices.forEach((idx) => {
-              const r = Math.floor(idx / 9);
-              if (r !== rowA.rowIndex && r !== rowB.rowIndex) {
-                if (
-                  grid[idx] === null &&
-                  internalCandidates[idx].includes(num)
-                ) {
-                  candidatesToEliminate.push(idx);
-                }
-              }
-            });
-          });
-
-          // Si encontramos celdas para limpiar, ¡Armamos la pista de 4 pasos!
-          if (candidatesToEliminate.length > 0) {
-            const rA = rowA.rowIndex;
-            const rB = rowB.rowIndex;
-            const cA = col1;
-            const cB = col2;
-
-            // Las 4 esquinas del rectángulo del X-Wing
-            const corners = [
-              rA * 9 + cA,
-              rA * 9 + cB,
-              rB * 9 + cA,
-              rB * 9 + cB,
-            ];
-
-            // Celdas de apoyo para pintar
-            const rowCells = [...getRowIndices(rA), ...getRowIndices(rB)];
-            const affectedCols = Array.from(
-              new Set([...getColIndices(cA), ...getColIndices(cB)]),
-            ).filter((idx) => !corners.includes(idx)); // Quitamos las esquinas para no sobreescribir colores
-
+          if (cellsToClear.length > 0) {
             return {
               found: true,
               type: "X-WING (Filas)",
-              totalSteps: 4, // <-- Nuestra variable dinámica de pasos
+              totalSteps: 3,
               steps: [
                 {
-                  message: `He detectado un patrón "X-Wing" con el número ${num}.`,
+                  message: `Fíjate en las Filas ${r1.row + 1} y ${r2.row + 1}. El candidato ${num} solo puede ir en 2 casillas en cada una de ellas, formando un rectángulo perfecto.`,
                   highlights: {
-                    primaryCells: corners,
-                    secondaryCells: [],
+                    primaryCells: [...r1.cells, ...r2.cells],
+                    secondaryCells: [
+                      ...getRowIndices(r1.row),
+                      ...getRowIndices(r2.row),
+                    ],
                     focusNumber: num,
                   },
                 },
                 {
-                  message: `Mira las filas ${rA + 1} y ${rB + 1}. El número ${num} solo aparece dos veces en cada una y están perfectamente alineados.`,
+                  message: `Esto crea un patrón "X-Wing". Pase lo que pase, el ${num} tendrá que ir obligatoriamente en dos esquinas diagonales de este rectángulo.`,
                   highlights: {
-                    primaryCells: corners,
-                    secondaryCells: rowCells,
+                    primaryCells: [...r1.cells, ...r2.cells],
+                    secondaryCells: [...col1Indices, ...col2Indices],
                     focusNumber: num,
                   },
                 },
                 {
-                  message: `Esto significa que el ${num} formará una 'X' cruzada. Ninguna OTRA celda en esas dos columnas puede tener un ${num}.`,
+                  message: `Por lo tanto, es imposible que el ${num} esté en ninguna otra parte de esas dos Columnas. ¡Elimina el ${num} de las celdas marcadas en azul!`,
                   highlights: {
-                    primaryCells: corners,
-                    secondaryCells: affectedCols,
-                    focusNumber: num,
-                  },
-                },
-                {
-                  message: `¡Elimina el candidato ${num} de las celdas resaltadas en esas columnas!`,
-                  highlights: {
-                    primaryCells: candidatesToEliminate,
-                    secondaryCells: corners,
+                    primaryCells: cellsToClear,
+                    secondaryCells: [...r1.cells, ...r2.cells],
                     focusNumber: num,
                   },
                 },
               ],
               action: {
-                type: "REMOVE_CANDIDATE",
-                cells: candidatesToEliminate,
-                value: num,
-              },
+                type: "REMOVE_CANDIDATES",
+                removals: cellsToClear.map((idx) => ({
+                  cell: idx,
+                  values: [num],
+                })),
+              } as any,
             };
           }
         }
       }
     }
-  }
 
-  // FASE 2: X-Wing en COLUMNAS (Elimina en Filas)
-  for (let num = 1; num <= 9; num++) {
-    const possibleCols: { colIndex: number; rows: number[] }[] = [];
+    // ==========================================
+    // 2. X-WING EN COLUMNAS (Limpia Filas)
+    // ==========================================
+    const colPositions: { col: number; rows: number[]; cells: number[] }[] = [];
 
     for (let c = 0; c < 9; c++) {
-      const colIndices = getColIndices(c);
-      const rowsWithNum = colIndices
-        .map((idx) => Math.floor(idx / 9))
-        .filter((r) => {
-          const idx = r * 9 + c;
-          return grid[idx] === null && internalCandidates[idx].includes(num);
-        });
+      const cIndices = getColIndices(c);
+      const cellsWithNum = cIndices.filter(
+        (idx) => grid[idx] === null && internalCandidates[idx].includes(num),
+      );
 
-      if (rowsWithNum.length === 2) {
-        possibleCols.push({ colIndex: c, rows: rowsWithNum });
+      if (cellsWithNum.length === 2) {
+        colPositions.push({
+          col: c,
+          rows: [
+            Math.floor(cellsWithNum[0] / 9),
+            Math.floor(cellsWithNum[1] / 9),
+          ],
+          cells: cellsWithNum,
+        });
       }
     }
 
-    for (let i = 0; i < possibleCols.length; i++) {
-      for (let j = i + 1; j < possibleCols.length; j++) {
-        const colA = possibleCols[i];
-        const colB = possibleCols[j];
+    for (let i = 0; i < colPositions.length - 1; i++) {
+      for (let j = i + 1; j < colPositions.length; j++) {
+        const c1 = colPositions[i];
+        const c2 = colPositions[j];
 
-        if (colA.rows[0] === colB.rows[0] && colA.rows[1] === colB.rows[1]) {
-          const row1 = colA.rows[0];
-          const row2 = colA.rows[1];
+        if (c1.rows[0] === c2.rows[0] && c1.rows[1] === c2.rows[1]) {
+          const row1 = c1.rows[0];
+          const row2 = c1.rows[1];
+          const row1Indices = getRowIndices(row1);
+          const row2Indices = getRowIndices(row2);
 
-          let candidatesToEliminate: number[] = [];
+          const cellsToClear = [...row1Indices, ...row2Indices].filter(
+            (idx) =>
+              grid[idx] === null &&
+              internalCandidates[idx].includes(num) &&
+              idx % 9 !== c1.col &&
+              idx % 9 !== c2.col,
+          );
 
-          [row1, row2].forEach((r) => {
-            const rowIndices = getRowIndices(r);
-            rowIndices.forEach((idx) => {
-              const c = idx % 9;
-              if (c !== colA.colIndex && c !== colB.colIndex) {
-                if (
-                  grid[idx] === null &&
-                  internalCandidates[idx].includes(num)
-                ) {
-                  candidatesToEliminate.push(idx);
-                }
-              }
-            });
-          });
-
-          if (candidatesToEliminate.length > 0) {
-            const cA = colA.colIndex;
-            const cB = colB.colIndex;
-            const rA = row1;
-            const rB = row2;
-
-            const corners = [
-              rA * 9 + cA,
-              rA * 9 + cB,
-              rB * 9 + cA,
-              rB * 9 + cB,
-            ];
-            const colCells = [...getColIndices(cA), ...getColIndices(cB)];
-            const affectedRows = Array.from(
-              new Set([...getRowIndices(rA), ...getRowIndices(rB)]),
-            ).filter((idx) => !corners.includes(idx));
-
+          if (cellsToClear.length > 0) {
             return {
               found: true,
               type: "X-WING (Columnas)",
-              totalSteps: 4,
+              totalSteps: 3,
               steps: [
                 {
-                  message: `He detectado un patrón "X-Wing" vertical con el número ${num}.`,
+                  message: `Fíjate en las Columnas ${c1.col + 1} y ${c2.col + 1}. El candidato ${num} solo puede ir en 2 casillas en cada una, formando un rectángulo perfecto.`,
                   highlights: {
-                    primaryCells: corners,
-                    secondaryCells: [],
+                    primaryCells: [...c1.cells, ...c2.cells],
+                    secondaryCells: [
+                      ...getColIndices(c1.col),
+                      ...getColIndices(c2.col),
+                    ],
                     focusNumber: num,
                   },
                 },
                 {
-                  message: `Mira las columnas ${cA + 1} y ${cB + 1}. El número ${num} solo aparece dos veces en cada una y están alineados.`,
+                  message: `Esto crea un patrón "X-Wing" vertical. El ${num} ocupará obligatoriamente dos esquinas diagonales cruzadas.`,
                   highlights: {
-                    primaryCells: corners,
-                    secondaryCells: colCells,
+                    primaryCells: [...c1.cells, ...c2.cells],
+                    secondaryCells: [...row1Indices, ...row2Indices],
                     focusNumber: num,
                   },
                 },
                 {
-                  message: `El ${num} debe estar en una de esas intersecciones, bloqueando el resto de las celdas en esas filas horizontales.`,
+                  message: `Por lo tanto, expulsa a los demás ${num} del resto de esas dos Filas. ¡Bórralos!`,
                   highlights: {
-                    primaryCells: corners,
-                    secondaryCells: affectedRows,
-                    focusNumber: num,
-                  },
-                },
-                {
-                  message: `¡Elimina el candidato ${num} de las celdas resaltadas en esas filas!`,
-                  highlights: {
-                    primaryCells: candidatesToEliminate,
-                    secondaryCells: corners,
+                    primaryCells: cellsToClear,
+                    secondaryCells: [...c1.cells, ...c2.cells],
                     focusNumber: num,
                   },
                 },
               ],
               action: {
-                type: "REMOVE_CANDIDATE",
-                cells: candidatesToEliminate,
-                value: num,
-              },
+                type: "REMOVE_CANDIDATES",
+                removals: cellsToClear.map((idx) => ({
+                  cell: idx,
+                  values: [num],
+                })),
+              } as any,
             };
           }
         }
@@ -241,6 +187,5 @@ export const findXWing: HintStrategy = (
     }
   }
 
-  // Si no encontró nada, devuelve null y el manager pasará a la siguiente técnica
   return null;
 };
