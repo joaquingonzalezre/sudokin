@@ -22,6 +22,9 @@ export const findHiddenPair: HintStrategy = (grid, internalCandidates) => {
 
   for (const { name, getter } of units) {
     for (let u = 0; u < 9; u++) {
+      const cellIndices = getter(u);
+      const candidatePositions: Record<number, number[]> = {};
+
       for (let num = 1; num <= 9; num++) {
         // 🛑 SEGURO ANTI-ERRORES
         if (cellIndices.some((idx) => grid[idx] === num)) {
@@ -29,20 +32,6 @@ export const findHiddenPair: HintStrategy = (grid, internalCandidates) => {
           continue;
         }
 
-
-
-
-
-
-
-
-
-
-      const cellIndices = getter(u);
-      const candidatePositions: Record<number, number[]> = {};
-
-      for (let num = 1; num <= 9; num++) {
-        
         candidatePositions[num] = cellIndices.filter(
           (idx) => grid[idx] === null && internalCandidates[idx].includes(num),
         );
@@ -64,7 +53,6 @@ export const findHiddenPair: HintStrategy = (grid, internalCandidates) => {
             const idx1 = posA[0];
             const idx2 = posA[1];
 
-            // Verificamos si hay basura que limpiar
             if (
               internalCandidates[idx1].length > 2 ||
               internalCandidates[idx2].length > 2
@@ -103,7 +91,7 @@ export const findHiddenPair: HintStrategy = (grid, internalCandidates) => {
                   type: "KEEP_CANDIDATES",
                   cells: [idx1, idx2],
                   values: [numA, numB],
-                }, // <-- Usamos la nueva acción KEEP
+                },
               };
             }
           }
