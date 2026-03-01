@@ -22,6 +22,9 @@ import {
 } from "../utils/imageTools";
 import { guardarSudokuImportado } from "../utils/importsudokus";
 
+// 🛑 HERRAMIENTAS DE TELEMETRÍA (El cable a la base de datos)
+import { analyzeTelemetry, saveTelemetryToDB } from "../utils/telemetryTools";
+
 // MÓDULOS DE DISEÑO
 import { useIsWeb } from "../hooks/useIsWeb";
 import ResponsiveLayout from "./ResponsiveLayout";
@@ -117,7 +120,7 @@ export default function SudokuBoard() {
     null,
   );
 
-  // 📊 NUEVO: TRACKER DE PISTAS (Historial de Lógicas)
+  // 📊 TRACKER DE PISTAS (Historial de Lógicas)
   const [hintHistory, setHintHistory] = useState<string[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -593,13 +596,21 @@ export default function SudokuBoard() {
 
   const conflicts = getAllConflicts(grid);
 
+  // 🛑 EL CABLE FINAL: ENVIAR TELEMETRÍA AL GANAR
   useEffect(() => {
     const isFull = grid.every((cell) => cell !== null);
     if (isFull && conflicts.size === 0 && !isGameWon) {
       setIsGameWon(true);
       setIsRunning(false);
+
+      if (hintHistory.length > 0) {
+        console.log("📡 Procesando telemetría de la partida...");
+        const telemetryData = analyzeTelemetry(initialPuzzle, hintHistory);
+        console.log("Resumen de partida:", telemetryData);
+        saveTelemetryToDB(telemetryData);
+      }
     }
-  }, [grid, conflicts, isGameWon]);
+  }, [grid, conflicts, isGameWon, initialPuzzle, hintHistory]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -900,7 +911,7 @@ export default function SudokuBoard() {
         mobileFooter={mobileFooterNode}
       />
 
-      {/* 📊 VISUALIZADOR DEL TRACKER DE PISTAS (ESTILO TERMINAL HACKER) */}
+      {/* 📊 VISUALIZADOR DEL TRACKER DE PISTAS */}
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 20px" }}>
         <div
           style={{

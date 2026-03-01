@@ -1,7 +1,7 @@
 // src/utils/telemetryTools.ts
 
 // 🛑 LA BRÚJULA: Apuntamos al servidor real de Vercel, no al localhost del teléfono
-const BACKEND_URL = "https://sudokin.vercel.app"; // <-- Cambia esto por tu URL real
+const BACKEND_URL = "https://sudokin.vercel.app";
 
 export interface TelemetryStats {
   puzzle: number[];
