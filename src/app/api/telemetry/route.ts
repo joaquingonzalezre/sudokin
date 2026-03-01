@@ -1,34 +1,55 @@
 import { NextResponse } from "next/server";
+import { neon } from "@neondatabase/serverless";
 
-// 1. Definimos los permisos para que cualquier celular pueda entrar
+// 🛡️ SALVOCONDUCTO PARA LA APP MÓVIL (CORS)
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*", // Permite cualquier origen (celular o web)
-  "Access-Control-Allow-Methods": "POST, OPTIONS", // Permite enviar datos y preguntar permisos
-  "Access-Control-Allow-Headers": "Content-Type, Authorization", // Permite enviar JSON
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
 };
 
-// 2. Esta función responde al "saludo" inicial que hace el celular (Preflight)
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-// 3. Esta función recibe los datos reales del Sudoku
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    // 1. Verificamos la conexión a Neon
+    if (!process.env.DATABASE_URL) {
+      throw new Error("Falta la variable DATABASE_URL");
+    }
+    const sql = neon(process.env.DATABASE_URL);
 
-    // Aquí es donde verás los datos en la pestaña "Logs" de Vercel
-    console.log("✅ Telemetría recibida con éxito:", body.calculatedDifficulty);
+    // 2. Recibimos el paquete del SudokuBoard
+    const body = await request.json();
+    const { puzzle, historyCount, totalSteps, calculatedDifficulty } = body;
+
+    // 3. Preparamos los datos
+    // Convertimos el grid inicial [4,0,0...] a texto "4,0,0..."
+    const puzzleString = puzzle.join(",");
+
+    // Convertimos el historial de lógicas a un string JSON seguro para Neon
+    const logicHistoryJson = JSON.stringify(historyCount);
+
+    // 4. Guardamos en la base de datos
+    await sql`
+      INSERT INTO telemetry_stats (puzzle_string, difficulty, total_steps, logic_history) 
+      VALUES (${puzzleString}, ${calculatedDifficulty}, ${totalSteps}, ${logicHistoryJson}::jsonb)
+    `;
+
+    console.log(
+      `✅ Telemetría guardada en Neon: ${calculatedDifficulty} (${totalSteps} pasos)`,
+    );
 
     return NextResponse.json(
-      { success: true, message: "Recibido" },
-      { status: 200, headers: corsHeaders }, // Enviamos los permisos también en la respuesta
+      { success: true, message: "Datos de partida guardados en Neon" },
+      { status: 200, headers: corsHeaders },
     );
   } catch (error) {
-    console.error("❌ Error procesando JSON:", error);
+    console.error("❌ Error guardando telemetría en Neon:", error);
     return NextResponse.json(
-      { success: false, error: "Formato inválido" },
-      { status: 400, headers: corsHeaders },
+      { success: false, error: "Fallo en la base de datos" },
+      { status: 500, headers: corsHeaders },
     );
   }
 }
