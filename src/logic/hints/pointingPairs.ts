@@ -18,6 +18,9 @@ export const findPointingPairs: HintStrategy = (grid, internalCandidates) => {
     const boxIndices = getBoxIndices(box);
 
     for (let num = 1; num <= 9; num++) {
+      // 🛑 SEGURO ANTI-ERRORES: Si el número ya está puesto en grande en esta caja, lo ignoramos.
+      if (boxIndices.some((idx) => grid[idx] === num)) continue;
+
       const possibleCells = boxIndices.filter(
         (idx) => grid[idx] === null && internalCandidates[idx].includes(num),
       );

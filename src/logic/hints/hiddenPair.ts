@@ -22,10 +22,27 @@ export const findHiddenPair: HintStrategy = (grid, internalCandidates) => {
 
   for (const { name, getter } of units) {
     for (let u = 0; u < 9; u++) {
+      for (let num = 1; num <= 9; num++) {
+        // 🛑 SEGURO ANTI-ERRORES
+        if (cellIndices.some((idx) => grid[idx] === num)) {
+          candidatePositions[num] = [];
+          continue;
+        }
+
+
+
+
+
+
+
+
+
+
       const cellIndices = getter(u);
       const candidatePositions: Record<number, number[]> = {};
 
       for (let num = 1; num <= 9; num++) {
+        
         candidatePositions[num] = cellIndices.filter(
           (idx) => grid[idx] === null && internalCandidates[idx].includes(num),
         );

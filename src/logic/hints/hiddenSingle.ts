@@ -25,44 +25,46 @@ export const findHiddenSingle: HintStrategy = (grid, internalCandidates) => {
       const cellIndices = getter(u);
 
       for (let num = 1; num <= 9; num++) {
+        // 🛑 LA REGLA DE SENTIDO COMÚN (EL FIX):
+        // ¿Este número ya está puesto como número GRANDE en esta Fila/Col/Caja?
+        // Si ya está puesto, lo ignoramos por completo.
+        const isAlreadyPlaced = cellIndices.some((idx) => grid[idx] === num);
+        if (isAlreadyPlaced) continue;
+
+        // Si no está puesto, buscamos en qué celdas vacías tiene candidato
         const possibleCells = cellIndices.filter(
           (idx) => grid[idx] === null && internalCandidates[idx].includes(num),
         );
 
         if (possibleCells.length === 1) {
           const targetIdx = possibleCells[0];
-
           return {
             found: true,
             type: `HIDDEN SINGLE (${name})`,
-            totalSteps: 3,
+            totalSteps: 2,
             steps: [
               {
-                message: `Revisa la ${name} ${u + 1}. Hay un número que no cabe en ningún otro lado.`,
+                message: `¡Es un "Hidden Single"! Revisa esta ${name}. El número ${num} solo tiene una casilla posible en sus notas.`,
                 highlights: {
                   primaryCells: [],
-                  secondaryCells: cellIndices,
-                  focusNumber: null,
-                },
-              },
-              {
-                message: `Fíjate en el número ${num}. Dentro de esta ${name}, solo tiene una celda posible.`,
-                highlights: {
-                  primaryCells: [targetIdx],
                   secondaryCells: cellIndices,
                   focusNumber: num,
                 },
               },
               {
-                message: `¡Es un "Hidden Single"! Aunque esa celda tenga otras notas, el ${num} debe ir ahí obligatoriamente para completar la ${name}.`,
+                message: `Aunque esa celda tenga otras notas, el ${num} debe ir ahí obligatoriamente para completar la ${name}.`,
                 highlights: {
                   primaryCells: [targetIdx],
-                  secondaryCells: [],
+                  secondaryCells: cellIndices,
                   focusNumber: num,
                 },
               },
             ],
-            action: { type: "PLACE_NUMBER", cells: [targetIdx], value: num },
+            action: {
+              type: "PLACE_NUMBER",
+              cells: [targetIdx],
+              value: num,
+            },
           };
         }
       }
