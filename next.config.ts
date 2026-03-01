@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
-// COMO DEBE QUEDAR (Nuevo):
-const nextConfig = {
+const nextConfig: NextConfig = {
+  output: "export",
   reactCompiler: true,
 };
 

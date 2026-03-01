@@ -1,4 +1,4 @@
-"use server";
+// Eliminamos "use server" porque esto correrá en el dispositivo móvil
 
 export interface ScanResponse {
   success: boolean;
@@ -6,16 +6,18 @@ export interface ScanResponse {
   error?: string;
 }
 
-/**
- * FUNCIÓN HÍBRIDA: Solo escanea los dígitos filtrados por el algoritmo matemático.
- * Recibe el collage solo con las casillas llenas y la cantidad esperada de dígitos.
- */
 export const scanFilteredDigits = async (
   collageBase64: string,
   expectedCount: number,
 ): Promise<ScanResponse> => {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return { success: false, grid: [], error: "Falta API Key" };
+  // 🛑 Usamos NEXT_PUBLIC_ para que la app móvil compilada pueda leer la llave
+  const apiKey = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+  if (!apiKey)
+    return {
+      success: false,
+      grid: [],
+      error: "Falta API Key. Asegúrate de usar NEXT_PUBLIC_",
+    };
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -39,7 +41,6 @@ export const scanFilteredDigits = async (
               content: [
                 {
                   type: "text",
-                  // --- EL TRUCO MAESTRO: EXIGIR COMAS ---
                   text: `Eres un OCR numérico de alta precisión. Te envío un collage con exactamente ${expectedCount} dígitos.
 Tu tarea es leerlos en orden (izquierda a derecha, arriba a abajo).
 
@@ -69,12 +70,9 @@ Ejemplo de respuesta si se esperan 5 dígitos: 5,3,9,1,2`,
     const data = await response.json();
     let aiAnswer = data.choices[0].message.content.trim();
 
-    // 1. Limpiamos todo lo que NO sea un número, un '?' o una COMA
     aiAnswer = aiAnswer.replace(/[^0-9?,]/g, "");
-
     console.log(`🤖 IA Respondió: "${aiAnswer}" (Esperados: ${expectedCount})`);
 
-    // 2. AHORA CORTAMOS USANDO LA COMA EN LUGAR DE CORTAR LETRA POR LETRA
     const digitsArray = aiAnswer.split(",");
 
     if (digitsArray.length !== expectedCount) {

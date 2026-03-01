@@ -17,6 +17,7 @@ interface ControlPadProps {
   completedNumbers: number[];
   onRestoreNotesClick: () => void;
   hasManualNotesBackup: boolean;
+  isWeb?: boolean;
 }
 
 export default function ControlPad({
@@ -34,26 +35,28 @@ export default function ControlPad({
   completedNumbers,
   onRestoreNotesClick,
   hasManualNotesBackup,
+  isWeb = false,
 }: ControlPadProps) {
-  // Estilo base para los números
   const numberBtnStyle = {
     border: "1px solid #d1d5db",
     borderRadius: "8px",
-    fontSize: "24px",
-    height: "60px",
+    fontSize: isWeb ? "26px" : "clamp(16px, 5vw, 24px)",
+    aspectRatio: isWeb ? "auto" : "1/1",
+    height: isWeb ? "64px" : "auto",
+    width: "100%",
+    padding: "0",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
     transition: "all 0.2s",
   };
 
-  // Estilo base gris para acciones (Filas de 2 columnas)
   const actionBtnStyle = {
     backgroundColor: "#e5e7eb",
     border: "none",
     borderRadius: "8px",
-    padding: "15px 5px",
+    padding: isWeb ? "12px 4px" : "10px 4px",
     fontSize: "14px",
     fontWeight: "600",
     color: "#374151",
@@ -64,16 +67,10 @@ export default function ControlPad({
     textAlign: "center" as const,
   };
 
-  // Estilo un poco más pequeño para la fila de 3 columnas
   const smallActionBtnStyle = {
     ...actionBtnStyle,
-    fontSize: "12px", // Letra más pequeña para que encajen los 3
-    padding: "15px 2px",
-  };
-
-  const autoBtnStyle = {
-    ...actionBtnStyle,
-    color: "#374151",
+    fontSize: "11px",
+    padding: isWeb ? "12px 2px" : "10px 2px",
   };
 
   return (
@@ -81,9 +78,9 @@ export default function ControlPad({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: "20px",
+        gap: isWeb ? "16px" : "8px",
         width: "100%",
-        maxWidth: "320px",
+        margin: "0 auto",
       }}
     >
       {/* 1. TOGGLE SUPERIOR */}
@@ -91,10 +88,10 @@ export default function ControlPad({
         style={{
           display: "flex",
           backgroundColor: "white",
-          borderRadius: "20px",
+          borderRadius: "12px",
           border: "1px solid black",
           overflow: "hidden",
-          height: "40px",
+          height: isWeb ? "48px" : "40px",
         }}
       >
         <button
@@ -127,17 +124,17 @@ export default function ControlPad({
         </button>
       </div>
 
-      {/* 2. NUMPAD CON LÓGICA DE COLORES */}
+      {/* 2. NUMPAD DINÁMICO */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "10px",
+          gridTemplateColumns: isWeb ? "repeat(3, 1fr)" : "repeat(9, 1fr)",
+          gap: isWeb ? "8px" : "2px",
+          width: "100%",
         }}
       >
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => {
           const isCompleted = completedNumbers.includes(num);
-
           return (
             <button
               key={num}
@@ -149,14 +146,6 @@ export default function ControlPad({
                 color: isCompleted ? "#9ca3af" : "#1f2937",
                 cursor: isCompleted ? "not-allowed" : "pointer",
               }}
-              onMouseOver={(e) => {
-                if (!isCompleted)
-                  e.currentTarget.style.backgroundColor = "#f3f4f6";
-              }}
-              onMouseOut={(e) => {
-                if (!isCompleted)
-                  e.currentTarget.style.backgroundColor = "white";
-              }}
             >
               {num}
             </button>
@@ -164,14 +153,13 @@ export default function ControlPad({
         })}
       </div>
 
-      {/* 3. BOTONES DE ACCIÓN (DIVIDIDOS EN 3 FILAS INDEPENDIENTES) */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {/* FILA 1: Undo y Borrar (2 columnas) */}
+      {/* 3. BOTONES DE ACCIÓN (¡Botón Auto IA Eliminado!) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "10px",
+            gap: "8px",
           }}
         >
           <button onClick={onUndoClick} style={actionBtnStyle}>
@@ -181,13 +169,11 @@ export default function ControlPad({
             Borrar
           </button>
         </div>
-
-        {/* FILA 2: Ver Notas | Mis Notas | SmartNotes (3 columnas) */}
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "10px",
+            gap: "6px",
           }}
         >
           <button
@@ -196,7 +182,6 @@ export default function ControlPad({
           >
             {showCandidates ? "Ocultar Notas" : "Ver Notas"}
           </button>
-
           <button
             onClick={onRestoreNotesClick}
             style={{
@@ -207,28 +192,25 @@ export default function ControlPad({
           >
             {hasManualNotesBackup ? "Volver a Mis Notas" : "Mis Notas"}
           </button>
-
-          <button
-            onClick={onToggleSmartNotes}
-            style={smallActionBtnStyle}
-            title="Recalcular notas automáticamente al escribir"
-          >
+          <button onClick={onToggleSmartNotes} style={smallActionBtnStyle}>
             SmartNotes: {smartNotesMode ? "ON" : "OFF"}
           </button>
         </div>
-
-        {/* FILA 3: Crear Notas y Limpiar Notas (2 columnas) */}
+        {/* Nueva Fila Inferior de 2 Columnas */}
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "10px",
+            gap: "6px",
           }}
         >
-          <button onClick={onCreateCandidates} style={autoBtnStyle}>
+          <button
+            onClick={onCreateCandidates}
+            style={{ ...smallActionBtnStyle, color: "#374151" }}
+          >
             Crear Notas
           </button>
-          <button onClick={onClearCandidatesClick} style={actionBtnStyle}>
+          <button onClick={onClearCandidatesClick} style={smallActionBtnStyle}>
             Limpiar Notas
           </button>
         </div>

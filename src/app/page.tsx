@@ -3,7 +3,8 @@ import SudokuBoard from "@/components/SudokuBoard";
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center">
+    // 🛑 Eliminamos "items-center" y agregamos "w-full" para garantizar libertad horizontal
+    <main className="flex min-h-screen flex-col w-full">
       <SudokuBoard />
     </main>
   );

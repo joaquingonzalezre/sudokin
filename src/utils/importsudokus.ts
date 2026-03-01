@@ -1,11 +1,15 @@
 // src/utils/importsudokus.ts
 
+// 🛑 IMPORTANTE: Reemplaza esta URL por el dominio real de tu proyecto en Vercel
+const BACKEND_URL = "https://tu-proyecto-sudokin.vercel.app";
+
 /**
- * Consulta la base de datos de Vercel para obtener TODOS los sudokus de la comunidad.
+ * Consulta la base de datos global para obtener TODOS los sudokus.
  */
 export const getImportedSudokusGlobal = async (): Promise<number[][]> => {
   try {
-    const res = await fetch("/api/sudokus");
+    // 🛑 Ahora el celular apunta directamente a Vercel
+    const res = await fetch(`${BACKEND_URL}/api/sudokus`);
     const data = await res.json();
     return data.sudokus || [];
   } catch (error) {
@@ -16,13 +20,12 @@ export const getImportedSudokusGlobal = async (): Promise<number[][]> => {
 
 /**
  * Envía un Sudoku recién escaneado a la API.
- * La base de datos (Postgres) se encarga de rechazarlo si ya existe.
  */
 export const guardarSudokuImportado = async (
   nuevoGrid: number[],
 ): Promise<void> => {
   try {
-    const res = await fetch("/api/sudokus", {
+    const res = await fetch(`${BACKEND_URL}/api/sudokus`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ grid: nuevoGrid }),
