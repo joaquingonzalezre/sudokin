@@ -1,11 +1,8 @@
 // src/utils/importsudokus.ts
 
 // 🛑 IMPORTANTE: Reemplaza esta URL por el dominio real de tu proyecto en Vercel
-const BACKEND_URL = "https://tu-proyecto-sudokin.vercel.app";
+const BACKEND_URL = "https://sudokin.vercel.app";
 
-/**
- * Consulta la base de datos global para obtener TODOS los sudokus.
- */
 export const getImportedSudokusGlobal = async (): Promise<number[][]> => {
   try {
     // 🛑 Ahora el celular apunta directamente a Vercel
