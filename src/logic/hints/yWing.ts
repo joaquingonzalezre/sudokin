@@ -5,22 +5,19 @@ const getCol = (idx: number) => idx % 9;
 const getBox = (idx: number) =>
   Math.floor(getRow(idx) / 3) * 3 + Math.floor(getCol(idx) / 3);
 
-// Función auxiliar para obtener todas las celdas que "ven" a una celda dada
 const getPeers = (idx: number) => {
   const peers = new Set<number>();
   const r = getRow(idx);
   const c = getCol(idx);
   const b = getBox(idx);
   for (let i = 0; i < 81; i++) {
-    if (i !== idx && (getRow(i) === r || getCol(i) === c || getBox(i) === b)) {
+    if (i !== idx && (getRow(i) === r || getCol(i) === c || getBox(i) === b))
       peers.add(i);
-    }
   }
   return Array.from(peers);
 };
 
 export const findYWing: HintStrategy = (grid, internalCandidates) => {
-  // 1. Encontrar todas las celdas que tengan exactamente 2 candidatos (Bi-value cells)
   const biValueCells = [];
   for (let i = 0; i < 81; i++) {
     if (grid[i] === null && internalCandidates[i].length === 2) {
@@ -28,12 +25,10 @@ export const findYWing: HintStrategy = (grid, internalCandidates) => {
     }
   }
 
-  // 2. Evaluar cada una de estas celdas como una posible "Bisagra"
   for (const pivot of biValueCells) {
     const [x, y] = pivot.cands;
     const peers = getPeers(pivot.idx);
 
-    // 3. Buscar posibles "Pinzas" entre las celdas que ven a la Bisagra
     const pincer1Candidates = peers
       .filter(
         (idx) =>
@@ -60,17 +55,13 @@ export const findYWing: HintStrategy = (grid, internalCandidates) => {
         z: internalCandidates[idx].find((c) => c !== y)!,
       }));
 
-    // 4. Probar las combinaciones de Pinza 1 y Pinza 2
     for (const p1 of pincer1Candidates) {
       for (const p2 of pincer2Candidates) {
-        // Deben compartir exactamente el mismo tercer número 'Z'
         if (p1.z === p2.z && p1.idx !== p2.idx) {
           const z = p1.z;
-
           const p1Peers = getPeers(p1.idx);
           const p2Peers = getPeers(p2.idx);
 
-          // 5. Encontrar celdas que sean intersectadas por AMBAS pinzas
           const commonPeers = p1Peers.filter(
             (idx) =>
               p2Peers.includes(idx) &&
@@ -78,8 +69,6 @@ export const findYWing: HintStrategy = (grid, internalCandidates) => {
               idx !== p1.idx &&
               idx !== p2.idx,
           );
-
-          // 6. Revisar si hay "basura" (el número Z) que podamos limpiar en esas intersecciones
           const cellsToClear = commonPeers.filter(
             (idx) => grid[idx] === null && internalCandidates[idx].includes(z),
           );
@@ -99,7 +88,7 @@ export const findYWing: HintStrategy = (grid, internalCandidates) => {
                   },
                 },
                 {
-                  message: `Ahora mira estas dos celdas "Pinzas" que están conectadas a la bisagra. Una tiene [${x}, ${z}] y la otra [${y}, ${z}].`,
+                  message: `Ahora mira estas dos celdas "Pinzas" conectadas. Una tiene [${x}, ${z}] y la otra [${y}, ${z}].`,
                   highlights: {
                     primaryCells: [p1.idx, p2.idx],
                     secondaryCells: [pivot.idx],
@@ -107,7 +96,7 @@ export const findYWing: HintStrategy = (grid, internalCandidates) => {
                   },
                 },
                 {
-                  message: `Piensa en esto: Si la Bisagra es ${x}, la Pinza 1 será ${z}. Si la Bisagra es ${y}, la Pinza 2 será ${z}. ¡Pase lo que pase, una de las dos Pinzas siempre será el número ${z}! Elimina el ${z} de las casillas que crucen con ambas pinzas.`,
+                  message: `Si la Bisagra es ${x}, la Pinza 1 será ${z}. Si es ${y}, la Pinza 2 será ${z}. ¡Una siempre será ${z}! Elimina el ${z} de las casillas que cruzan ambas pinzas.`,
                   highlights: {
                     primaryCells: cellsToClear,
                     secondaryCells: [p1.idx, p2.idx],
@@ -116,18 +105,15 @@ export const findYWing: HintStrategy = (grid, internalCandidates) => {
                 },
               ],
               action: {
-                type: "REMOVE_CANDIDATES",
-                removals: cellsToClear.map((idx) => ({
-                  cell: idx,
-                  values: [z],
-                })),
-              } as any, // Mantenemos el "as any" mágico que nos salvó en el X-Wing
+                type: "REMOVE_CANDIDATE",
+                cells: cellsToClear,
+                values: [z],
+              },
             };
           }
         }
       }
     }
   }
-
   return null;
 };

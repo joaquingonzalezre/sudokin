@@ -7,18 +7,14 @@ const getColIndices = (col: number) =>
 
 export const findSwordfish: HintStrategy = (grid, internalCandidates) => {
   for (let num = 1; num <= 9; num++) {
-    // ==========================================
-    // 1. SWORDFISH EN FILAS (Limpia Columnas)
-    // ==========================================
+    // 1. SWORDFISH EN FILAS
     const rowPositions: { row: number; cols: number[]; cells: number[] }[] = [];
 
-    // Buscamos filas donde el número aparezca solo en 2 o 3 celdas
     for (let r = 0; r < 9; r++) {
       const rIndices = getRowIndices(r);
       const cellsWithNum = rIndices.filter(
         (idx) => grid[idx] === null && internalCandidates[idx].includes(num),
       );
-
       if (cellsWithNum.length >= 2 && cellsWithNum.length <= 3) {
         rowPositions.push({
           row: r,
@@ -28,7 +24,6 @@ export const findSwordfish: HintStrategy = (grid, internalCandidates) => {
       }
     }
 
-    // Buscamos combinaciones de 3 filas
     for (let i = 0; i < rowPositions.length - 2; i++) {
       for (let j = i + 1; j < rowPositions.length - 1; j++) {
         for (let k = j + 1; k < rowPositions.length; k++) {
@@ -36,17 +31,14 @@ export const findSwordfish: HintStrategy = (grid, internalCandidates) => {
           const r2 = rowPositions[j];
           const r3 = rowPositions[k];
 
-          // Unimos todas las columnas donde aparece el número en estas 3 filas
           const combinedCols = Array.from(
             new Set([...r1.cols, ...r2.cols, ...r3.cols]),
           );
 
-          // ¡LA MAGIA! Si entre las 3 filas suman exactamente 3 columnas únicas
           if (combinedCols.length === 3) {
             const cellsToClear: number[] = [];
             const swordfishCells = [...r1.cells, ...r2.cells, ...r3.cells];
 
-            // Revisamos esas 3 columnas buscando "basura" en otras filas
             for (const c of combinedCols) {
               const cIndices = getColIndices(c);
               const garbage = cIndices.filter(
@@ -79,7 +71,7 @@ export const findSwordfish: HintStrategy = (grid, internalCandidates) => {
                     },
                   },
                   {
-                    message: `Al alinear esas 3 filas, vemos que todos los ${num} caen exactamente en solo 3 Columnas. Esto crea un patrón "Swordfish" (Pez Espada).`,
+                    message: `Al alinear esas 3 filas, vemos que todos los ${num} caen exactamente en solo 3 Columnas. Esto crea un patrón "Swordfish".`,
                     highlights: {
                       primaryCells: swordfishCells,
                       secondaryCells: combinedCols.flatMap((c) =>
@@ -89,7 +81,7 @@ export const findSwordfish: HintStrategy = (grid, internalCandidates) => {
                     },
                   },
                   {
-                    message: `Como el ${num} se repartirá obligatoriamente en esas intersecciones, bloquea el paso en el resto de esas 3 columnas. ¡Elimina el ${num} de las celdas marcadas!`,
+                    message: `Como el ${num} se repartirá obligatoriamente en esas intersecciones, bloquea el paso en el resto de esas 3 columnas. ¡Límpialo!`,
                     highlights: {
                       primaryCells: cellsToClear,
                       secondaryCells: swordfishCells,
@@ -98,12 +90,10 @@ export const findSwordfish: HintStrategy = (grid, internalCandidates) => {
                   },
                 ],
                 action: {
-                  type: "REMOVE_CANDIDATES",
-                  removals: cellsToClear.map((idx) => ({
-                    cell: idx,
-                    values: [num],
-                  })),
-                } as any,
+                  type: "REMOVE_CANDIDATE",
+                  cells: cellsToClear,
+                  values: [num],
+                },
               };
             }
           }
@@ -111,9 +101,7 @@ export const findSwordfish: HintStrategy = (grid, internalCandidates) => {
       }
     }
 
-    // ==========================================
-    // 2. SWORDFISH EN COLUMNAS (Limpia Filas)
-    // ==========================================
+    // 2. SWORDFISH EN COLUMNAS
     const colPositions: { col: number; rows: number[]; cells: number[] }[] = [];
 
     for (let c = 0; c < 9; c++) {
@@ -121,7 +109,6 @@ export const findSwordfish: HintStrategy = (grid, internalCandidates) => {
       const cellsWithNum = cIndices.filter(
         (idx) => grid[idx] === null && internalCandidates[idx].includes(num),
       );
-
       if (cellsWithNum.length >= 2 && cellsWithNum.length <= 3) {
         colPositions.push({
           col: c,
@@ -197,12 +184,10 @@ export const findSwordfish: HintStrategy = (grid, internalCandidates) => {
                   },
                 ],
                 action: {
-                  type: "REMOVE_CANDIDATES",
-                  removals: cellsToClear.map((idx) => ({
-                    cell: idx,
-                    values: [num],
-                  })),
-                } as any,
+                  type: "REMOVE_CANDIDATE",
+                  cells: cellsToClear,
+                  values: [num],
+                },
               };
             }
           }
@@ -210,6 +195,5 @@ export const findSwordfish: HintStrategy = (grid, internalCandidates) => {
       }
     }
   }
-
   return null;
 };

@@ -24,7 +24,6 @@ export const findNakedTriple: HintStrategy = (grid, internalCandidates) => {
     for (let u = 0; u < 9; u++) {
       const cellIndices = getter(u);
 
-      // 1. Buscamos celdas vacías que tengan 2 o 3 notas como máximo
       const eligibleCells = cellIndices.filter(
         (idx) =>
           grid[idx] === null &&
@@ -34,7 +33,6 @@ export const findNakedTriple: HintStrategy = (grid, internalCandidates) => {
 
       if (eligibleCells.length < 3) continue;
 
-      // 2. Evaluamos todas las combinaciones posibles de 3 celdas
       for (let i = 0; i < eligibleCells.length - 2; i++) {
         for (let j = i + 1; j < eligibleCells.length - 1; j++) {
           for (let k = j + 1; k < eligibleCells.length; k++) {
@@ -46,14 +44,11 @@ export const findNakedTriple: HintStrategy = (grid, internalCandidates) => {
             const c2 = internalCandidates[cell2];
             const c3 = internalCandidates[cell3];
 
-            // Juntamos todas las notas de estas 3 celdas eliminando duplicados
             const combinedCandidates = new Set([...c1, ...c2, ...c3]);
 
-            // 🛑 SEGURO DE LÓGICA: Si entre las 3 celdas suman exactamente 3 números únicos
             if (combinedCandidates.size === 3) {
               const tripleValues = Array.from(combinedCandidates);
 
-              // 3. Buscamos si esos 3 números están "ensuciando" otras celdas de la misma Fila/Col/Caja
               const affectedCells = cellIndices.filter(
                 (idx) =>
                   idx !== cell1 &&
@@ -66,23 +61,13 @@ export const findNakedTriple: HintStrategy = (grid, internalCandidates) => {
               );
 
               if (affectedCells.length > 0) {
-                // ¡Encontramos un Trío Desnudo útil! Preparamos la limpieza.
-                const removals = affectedCells.map((idx) => ({
-                  cell: idx,
-                  values: internalCandidates[idx].filter((c) =>
-                    tripleValues.includes(c),
-                  ),
-                }));
-
                 return {
                   found: true,
                   type: `NAKED TRIPLE (${name})`,
                   totalSteps: 3,
                   steps: [
                     {
-                      message: `Fíjate en esta ${name}. Hay 3 celdas que comparten exclusivamente estos 3 candidatos: ${tripleValues.join(
-                        ", ",
-                      )}.`,
+                      message: `Fíjate en esta ${name}. Hay 3 celdas que comparten exclusivamente estos 3 candidatos: ${tripleValues.join(", ")}.`,
                       highlights: {
                         primaryCells: [cell1, cell2, cell3],
                         secondaryCells: cellIndices,
@@ -93,7 +78,6 @@ export const findNakedTriple: HintStrategy = (grid, internalCandidates) => {
                       message: `Como esos 3 números deben ubicarse obligatoriamente repartidos en esas 3 casillas, forman un "Trío Desnudo".`,
                       highlights: {
                         primaryCells: [cell1, cell2, cell3],
-                        // 🛑 CORRECCIÓN 1: Quitamos el .map(a => a.cell)
                         secondaryCells: affectedCells,
                         focusNumber: null,
                       },
@@ -101,18 +85,18 @@ export const findNakedTriple: HintStrategy = (grid, internalCandidates) => {
                     {
                       message: `Esto significa que ninguna otra casilla de la ${name} puede tener esos números. ¡Bórralos de las demás celdas!`,
                       highlights: {
-                        // 🛑 CORRECCIÓN 1: Quitamos el .map(a => a.cell)
                         primaryCells: affectedCells,
                         secondaryCells: [cell1, cell2, cell3],
                         focusNumber: null,
                       },
                     },
                   ],
-                  // 🛑 CORRECCIÓN 2: Agregamos "as any" para saltar el tipado estricto
+                  // 🛑 FIX: Acción estándar del tablero
                   action: {
-                    type: "REMOVE_CANDIDATES",
-                    removals: removals,
-                  } as any,
+                    type: "REMOVE_CANDIDATE",
+                    cells: affectedCells,
+                    values: tripleValues,
+                  },
                 };
               }
             }

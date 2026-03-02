@@ -6,11 +6,8 @@ const getColIndices = (col: number) =>
   Array.from({ length: 9 }, (_, i) => i * 9 + col);
 
 export const findXWing: HintStrategy = (grid, internalCandidates) => {
-  // Evaluamos número por número, del 1 al 9
   for (let num = 1; num <= 9; num++) {
-    // ==========================================
-    // 1. X-WING EN FILAS (Limpia Columnas)
-    // ==========================================
+    // 1. X-WING EN FILAS
     const rowPositions: { row: number; cols: number[]; cells: number[] }[] = [];
 
     for (let r = 0; r < 9; r++) {
@@ -19,7 +16,6 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
         (idx) => grid[idx] === null && internalCandidates[idx].includes(num),
       );
 
-      // Si el número solo puede ir en EXACTAMENTE 2 celdas de esta fila, lo guardamos
       if (cellsWithNum.length === 2) {
         rowPositions.push({
           row: r,
@@ -29,19 +25,15 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
       }
     }
 
-    // Buscamos 2 filas que compartan exactamente las mismas 2 columnas
     for (let i = 0; i < rowPositions.length - 1; i++) {
       for (let j = i + 1; j < rowPositions.length; j++) {
         const r1 = rowPositions[i];
         const r2 = rowPositions[j];
 
         if (r1.cols[0] === r2.cols[0] && r1.cols[1] === r2.cols[1]) {
-          const col1 = r1.cols[0];
-          const col2 = r1.cols[1];
-          const col1Indices = getColIndices(col1);
-          const col2Indices = getColIndices(col2);
+          const col1Indices = getColIndices(r1.cols[0]);
+          const col2Indices = getColIndices(r1.cols[1]);
 
-          // Buscamos si hay "basura" (el mismo número) en el resto de esas columnas
           const cellsToClear = [...col1Indices, ...col2Indices].filter(
             (idx) =>
               grid[idx] === null &&
@@ -57,7 +49,7 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
               totalSteps: 3,
               steps: [
                 {
-                  message: `Fíjate en las Filas ${r1.row + 1} y ${r2.row + 1}. El candidato ${num} solo puede ir en 2 casillas en cada una de ellas, formando un rectángulo perfecto.`,
+                  message: `Fíjate en las Filas ${r1.row + 1} y ${r2.row + 1}. El candidato ${num} solo puede ir en 2 casillas en cada una de ellas.`,
                   highlights: {
                     primaryCells: [...r1.cells, ...r2.cells],
                     secondaryCells: [
@@ -76,7 +68,7 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
                   },
                 },
                 {
-                  message: `Por lo tanto, es imposible que el ${num} esté en ninguna otra parte de esas dos Columnas. ¡Elimina el ${num} de las celdas marcadas en azul!`,
+                  message: `Por lo tanto, es imposible que el ${num} esté en ninguna otra parte de esas dos Columnas. ¡Elimina el ${num} de las celdas marcadas!`,
                   highlights: {
                     primaryCells: cellsToClear,
                     secondaryCells: [...r1.cells, ...r2.cells],
@@ -86,20 +78,16 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
               ],
               action: {
                 type: "REMOVE_CANDIDATE",
-                removals: cellsToClear.map((idx) => ({
-                  cell: idx,
-                  values: [num],
-                })),
-              } as any,
+                cells: cellsToClear,
+                values: [num],
+              },
             };
           }
         }
       }
     }
 
-    // ==========================================
-    // 2. X-WING EN COLUMNAS (Limpia Filas)
-    // ==========================================
+    // 2. X-WING EN COLUMNAS
     const colPositions: { col: number; rows: number[]; cells: number[] }[] = [];
 
     for (let c = 0; c < 9; c++) {
@@ -126,10 +114,8 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
         const c2 = colPositions[j];
 
         if (c1.rows[0] === c2.rows[0] && c1.rows[1] === c2.rows[1]) {
-          const row1 = c1.rows[0];
-          const row2 = c1.rows[1];
-          const row1Indices = getRowIndices(row1);
-          const row2Indices = getRowIndices(row2);
+          const row1Indices = getRowIndices(c1.rows[0]);
+          const row2Indices = getRowIndices(c1.rows[1]);
 
           const cellsToClear = [...row1Indices, ...row2Indices].filter(
             (idx) =>
@@ -146,7 +132,7 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
               totalSteps: 3,
               steps: [
                 {
-                  message: `Fíjate en las Columnas ${c1.col + 1} y ${c2.col + 1}. El candidato ${num} solo puede ir en 2 casillas en cada una, formando un rectángulo perfecto.`,
+                  message: `Fíjate en las Columnas ${c1.col + 1} y ${c2.col + 1}. El candidato ${num} solo puede ir en 2 casillas en cada una.`,
                   highlights: {
                     primaryCells: [...c1.cells, ...c2.cells],
                     secondaryCells: [
@@ -175,17 +161,14 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
               ],
               action: {
                 type: "REMOVE_CANDIDATE",
-                removals: cellsToClear.map((idx) => ({
-                  cell: idx,
-                  values: [num],
-                })),
-              } as any,
+                cells: cellsToClear,
+                values: [num],
+              },
             };
           }
         }
       }
     }
   }
-
   return null;
 };

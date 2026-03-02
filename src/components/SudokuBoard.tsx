@@ -309,34 +309,25 @@ export default function SudokuBoard() {
             });
             setGrid(newGrid);
             setCandidatesGrid(newCandidates);
+
+            // ✅ PÉGALO EXACTAMENTE ASÍ
           } else if (act.type.includes("REMOVE")) {
             let newCandidates = [...candidatesGrid];
 
-            if (act.removals && Array.isArray(act.removals)) {
-              act.removals.forEach((r: any) => {
-                const vals =
-                  r.values || (r.value !== undefined ? [r.value] : []);
-                if (r.cell !== undefined) {
-                  newCandidates[r.cell] = newCandidates[r.cell].filter(
-                    (c) => !vals.includes(c),
-                  );
-                }
-              });
-            } else if (act.cells || act.cell !== undefined) {
-              const valsToRemove =
-                act.values || (act.value !== undefined ? [act.value] : []);
-              const cellsToUpdate =
-                act.cells || (act.cell !== undefined ? [act.cell] : []);
+            const valsToRemove =
+              act.values || (act.value !== undefined ? [act.value] : []);
+            const cellsToUpdate =
+              act.cells || (act.cell !== undefined ? [act.cell] : []);
 
-              cellsToUpdate.forEach((idx: number) => {
-                newCandidates[idx] = newCandidates[idx].filter(
-                  (c) => !valsToRemove.includes(c),
-                );
-              });
-            }
+            cellsToUpdate.forEach((idx: number) => {
+              newCandidates[idx] = newCandidates[idx].filter(
+                (c) => !valsToRemove.includes(c),
+              );
+            });
 
             setCandidatesGrid(newCandidates);
             if (!showCandidates) setShowCandidates(true);
+            // ✅ HASTA AQUÍ
           } else if (act.type.includes("KEEP")) {
             let newCandidates = [...candidatesGrid];
             const valuesToKeep =
