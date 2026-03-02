@@ -85,7 +85,7 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
                 },
               ],
               action: {
-                type: "REMOVE_CANDIDATES",
+                type: "REMOVE_CANDIDATE",
                 removals: cellsToClear.map((idx) => ({
                   cell: idx,
                   values: [num],
@@ -174,7 +174,7 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
                 },
               ],
               action: {
-                type: "REMOVE_CANDIDATES",
+                type: "REMOVE_CANDIDATE",
                 removals: cellsToClear.map((idx) => ({
                   cell: idx,
                   values: [num],

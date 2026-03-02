@@ -106,7 +106,7 @@ export const findHiddenPair: HintStrategy = (grid, internalCandidates) => {
                 ],
                 // 🛑 Acción corregida para borrar explícitamente la basura
                 action: {
-                  type: "REMOVE_CANDIDATES",
+                  type: "REMOVE_CANDIDATE",
                   cells: [cell1, cell2],
                   values: Array.from(garbage),
                 },
