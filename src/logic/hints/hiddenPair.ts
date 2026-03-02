@@ -59,12 +59,21 @@ export const findHiddenPair: HintStrategy = (grid, internalCandidates) => {
             const cell1 = posA[0];
             const cell2 = posA[1];
 
-            // 4. SEGURO: Verificamos si hay "basura" que limpiar en estas celdas
+            // 4. Verificamos si hay "basura" que limpiar en estas celdas
             const hasGarbage =
               internalCandidates[cell1].some((c) => c !== numA && c !== numB) ||
               internalCandidates[cell2].some((c) => c !== numA && c !== numB);
 
             if (hasGarbage) {
+              // 🛑 Recopilamos toda la "basura" que no sea numA ni numB
+              const garbage = new Set<number>();
+              internalCandidates[cell1].forEach((c) => {
+                if (c !== numA && c !== numB) garbage.add(c);
+              });
+              internalCandidates[cell2].forEach((c) => {
+                if (c !== numA && c !== numB) garbage.add(c);
+              });
+
               return {
                 found: true,
                 type: `HIDDEN PAIR (${name})`,
@@ -95,12 +104,12 @@ export const findHiddenPair: HintStrategy = (grid, internalCandidates) => {
                     },
                   },
                 ],
-                // 🛑 LA MAGIA: Acción KEEP en lugar de REMOVE
+                // 🛑 Acción corregida para borrar explícitamente la basura
                 action: {
-                  type: "KEEP_CANDIDATES",
+                  type: "REMOVE_CANDIDATES",
                   cells: [cell1, cell2],
-                  values: [numA, numB],
-                } as any,
+                  values: Array.from(garbage),
+                },
               };
             }
           }

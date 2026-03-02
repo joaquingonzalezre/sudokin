@@ -12,36 +12,46 @@ const getBoxIndices = (box: number) => {
     (_, i) => (startRow + Math.floor(i / 3)) * 9 + (startCol + (i % 3)),
   );
 };
-const areArraysEqual = (a: number[], b: number[]) =>
-  a.length === b.length && a.every((val, index) => val === b[index]);
 
 export const findNakedPair: HintStrategy = (grid, internalCandidates) => {
   const units = [
+    { name: "Caja", getter: getBoxIndices },
     { name: "Fila", getter: getRowIndices },
     { name: "Columna", getter: getColIndices },
-    { name: "Caja", getter: getBoxIndices },
   ];
 
   for (const { name, getter } of units) {
     for (let u = 0; u < 9; u++) {
       const cellIndices = getter(u);
-      const bivalueCells = cellIndices.filter(
+
+      // 1. Buscamos celdas con exactamente 2 candidatos
+      const eligibleCells = cellIndices.filter(
         (idx) => grid[idx] === null && internalCandidates[idx].length === 2,
       );
 
-      for (let i = 0; i < bivalueCells.length; i++) {
-        for (let j = i + 1; j < bivalueCells.length; j++) {
-          const idxA = bivalueCells[i];
-          const idxB = bivalueCells[j];
-          const pairValues = internalCandidates[idxA];
+      if (eligibleCells.length < 2) continue;
 
-          if (areArraysEqual(pairValues, internalCandidates[idxB])) {
+      // 2. Comparamos para encontrar dos celdas idénticas
+      for (let i = 0; i < eligibleCells.length - 1; i++) {
+        for (let j = i + 1; j < eligibleCells.length; j++) {
+          const cell1 = eligibleCells[i];
+          const cell2 = eligibleCells[j];
+          const c1 = internalCandidates[cell1];
+          const c2 = internalCandidates[cell2];
+
+          // Si tienen exactamente la misma pareja de números
+          if (c1[0] === c2[0] && c1[1] === c2[1]) {
+            const val1 = c1[0];
+            const val2 = c1[1];
+
+            // 3. Buscamos celdas afectadas para limpiar (el resto de la Fila/Col/Caja)
             const affectedCells = cellIndices.filter(
               (idx) =>
-                idx !== idxA &&
-                idx !== idxB &&
+                idx !== cell1 &&
+                idx !== cell2 &&
                 grid[idx] === null &&
-                internalCandidates[idx].some((c) => pairValues.includes(c)),
+                (internalCandidates[idx].includes(val1) ||
+                  internalCandidates[idx].includes(val2)),
             );
 
             if (affectedCells.length > 0) {
@@ -51,35 +61,36 @@ export const findNakedPair: HintStrategy = (grid, internalCandidates) => {
                 totalSteps: 3,
                 steps: [
                   {
-                    message: `Hay dos casillas en esta ${name} que forman una pareja exclusiva ("Naked Pair").`,
+                    message: `Fíjate en esta ${name}. Hay dos casillas que comparten exclusivamente la misma pareja de candidatos: el ${val1} y el ${val2}.`,
                     highlights: {
-                      primaryCells: [idxA, idxB],
+                      primaryCells: [cell1, cell2],
                       secondaryCells: cellIndices,
                       focusNumber: null,
                     },
                   },
                   {
-                    message: `Las celdas resaltadas contienen exactamente los mismos dos candidatos: ${pairValues[0]} y ${pairValues[1]}. Por lo tanto, esos números TIENEN que ir ahí.`,
+                    message: `Como los números ${val1} y ${val2} solo pueden ir obligatoriamente en estas dos casillas, forman una pareja exclusiva ("Naked Pair").`,
                     highlights: {
-                      primaryCells: [idxA, idxB],
-                      secondaryCells: cellIndices,
+                      primaryCells: [cell1, cell2],
+                      secondaryCells: affectedCells,
                       focusNumber: null,
                     },
                   },
                   {
-                    message: `¡Elimina los candidatos ${pairValues[0]} y ${pairValues[1]} del resto de las celdas de la ${name}!`,
+                    message: `¡Elimina los candidatos ${val1} y ${val2} del resto de las celdas marcadas en azul de esta ${name}!`,
                     highlights: {
                       primaryCells: affectedCells,
-                      secondaryCells: [idxA, idxB],
+                      secondaryCells: [cell1, cell2],
                       focusNumber: null,
                     },
                   },
                 ],
+                // 🛑 Acción corregida para que el tablero la entienda
                 action: {
                   type: "REMOVE_CANDIDATE",
                   cells: affectedCells,
-                  values: pairValues,
-                }, // <-- Usamos values (plural)
+                  values: [val1, val2],
+                },
               };
             }
           }
