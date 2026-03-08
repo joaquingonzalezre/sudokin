@@ -166,6 +166,7 @@ interface GameModalsProps {
   handleRestart: () => void;
   onToggleWinModal: () => void;
   totalSudokusCount: number;
+  initialDifficulty?: Difficulty | null;
 }
 
 export default function GameModals({
@@ -183,6 +184,7 @@ export default function GameModals({
   handleRestart,
   onToggleWinModal,
   totalSudokusCount,
+  initialDifficulty = null,
 }: GameModalsProps) {
   const [tempDifficulty, setTempDifficulty] = useState<Difficulty | null>(null);
   const [selectedId, setSelectedId] = useState<number>(1);
@@ -203,6 +205,16 @@ export default function GameModals({
       setSelectedId(quadrantRanges[diff].min);
     }
   };
+
+  // 📝 Sync with external difficulty (for Web version)
+  React.useEffect(() => {
+    if (showDifficultyModal && initialDifficulty) {
+      setTempDifficulty(initialDifficulty);
+      setSelectedId(quadrantRanges[initialDifficulty as keyof typeof quadrantRanges]?.min || 1);
+    } else if (!showDifficultyModal) {
+      setTempDifficulty(null);
+    }
+  }, [showDifficultyModal, initialDifficulty, quadrantRanges]);
 
   const closeModal = () => {
     setShowDifficultyModal(false);

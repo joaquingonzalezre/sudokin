@@ -125,6 +125,8 @@ export default function SudokuBoard() {
   const [showDifficultyModal, setShowDifficultyModal] = useState(false);
   const [isCandidateHighlightOn, setIsCandidateHighlightOn] = useState(false);
 
+  const [modalInitialDifficulty, setModalInitialDifficulty] = useState<Difficulty | null>(null);
+
   const [currentDifficulty, setCurrentDifficulty] = useState<string | null>(
     null,
   );
@@ -900,16 +902,16 @@ export default function SudokuBoard() {
       >
         Nuevo Sudoku
       </h3>
-      <button style={webBtnStyle} onClick={() => handleNewGame("easy")}>
+      <button style={webBtnStyle} onClick={() => { setModalInitialDifficulty("easy"); setShowDifficultyModal(true); }}>
         Fácil
       </button>
-      <button style={webBtnStyle} onClick={() => handleNewGame("medium")}>
+      <button style={webBtnStyle} onClick={() => { setModalInitialDifficulty("medium"); setShowDifficultyModal(true); }}>
         Intermedio
       </button>
-      <button style={webBtnStyle} onClick={() => handleNewGame("hard")}>
+      <button style={webBtnStyle} onClick={() => { setModalInitialDifficulty("hard"); setShowDifficultyModal(true); }}>
         Difícil
       </button>
-      <button style={webBtnStyle} onClick={() => handleNewGame("expert")}>
+      <button style={webBtnStyle} onClick={() => { setModalInitialDifficulty("expert"); setShowDifficultyModal(true); }}>
         Experto
       </button>
       <button
@@ -1007,7 +1009,10 @@ export default function SudokuBoard() {
 
       <GameModals
         showDifficultyModal={showDifficultyModal}
-        setShowDifficultyModal={setShowDifficultyModal}
+        setShowDifficultyModal={(show) => {
+          setShowDifficultyModal(show);
+          if (!show) setModalInitialDifficulty(null);
+        }}
         handleNewGame={handleNewGame}
         fileInputRef={fileInputRef}
         isScanning={isScanning}
@@ -1020,6 +1025,7 @@ export default function SudokuBoard() {
         handleRestart={handleResetCurrent}
         onToggleWinModal={() => setIsGameWon(false)}
         totalSudokusCount={sudokusOrdenados.length}
+        initialDifficulty={modalInitialDifficulty}
       />
     </div>
   );
