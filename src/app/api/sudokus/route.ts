@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { neon } from "@neondatabase/serverless";
+import { sudokusOrdenados } from "../../../../scripts/sudokus_ordenados";
+
+export const dynamic = "force-static";
 
 // 🛡️ SALVOCONDUCTO PARA LA APP MÓVIL
 const corsHeaders = {
@@ -13,21 +15,13 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-// 2. RECUPERAR SUDOKUS: Se activa cuando la app pide descargar los niveles
+// 2. RECUPERAR SUDOKUS: Descarga directamente los niveles locales
 export async function GET() {
   try {
-    if (!process.env.DATABASE_URL)
-      throw new Error("No hay conexión a la base de datos");
-
-    // Conectamos a Neon
-    const sql = neon(process.env.DATABASE_URL);
-
-    // Traemos los últimos 50 sudokus guardados
-    const rows =
-      await sql`SELECT grid_string FROM imported_sudokus ORDER BY created_at DESC LIMIT 50`;
-
-    // Transformamos el texto (ej: "4,0,0,6...") de vuelta a un arreglo de números
-    const sudokus = rows.map((row) => row.grid_string.split(",").map(Number));
+    // Para simplificar, devolvemos todo el arreglo o una parte al azar, pero
+    // devolveremos los primeros 50 o todos, como solía hacer la BDD
+    const sudokus = sudokusOrdenados;
+    // Si quisieras unos pocos aleatorios, podrías mezclarlos aquí, pero mandaremos todos.
 
     return NextResponse.json(
       { success: true, sudokus },
@@ -42,32 +36,24 @@ export async function GET() {
   }
 }
 
-// 3. GUARDAR SUDOKU: Se activa cuando terminas de escanear la foto
+// 3. GUARDAR SUDOKU: Ya no hace falta guardar en Neon. 
+// Para que la app no tire error, simularemos que fue un éxito.
 export async function POST(request: Request) {
   try {
-    if (!process.env.DATABASE_URL)
-      throw new Error("No hay conexión a la base de datos");
-    const sql = neon(process.env.DATABASE_URL);
-
     const body = await request.json();
     const { grid } = body;
 
-    // Convertimos el arreglo (ej: [4, 0, 0, 6...]) a texto ("4,0,0,6...") para Neon
-    const gridString = grid.join(",");
-
-    // Insertamos en la tabla
-    await sql`INSERT INTO imported_sudokus (grid_string) VALUES (${gridString})`;
-
-    console.log("✅ Sudoku importado guardado en Neon.");
+    // Ya no guardaremos nada en Neon, solo recibimos el grid y respondemos 200 OK
+    console.log("✅ Sudoku nuevo escaneado. Guardado temporal descartado por ser versión offline.");
 
     return NextResponse.json(
-      { success: true, message: "Guardado en la nube" },
+      { success: true, message: "Simulación de guardado (Offline)" },
       { status: 200, headers: corsHeaders },
     );
   } catch (error) {
     console.error("❌ Error guardando sudoku:", error);
     return NextResponse.json(
-      { success: false, error: "Fallo en la base de datos" },
+      { success: false, error: "Fallo procesando el sudoku" },
       { status: 500, headers: corsHeaders },
     );
   }

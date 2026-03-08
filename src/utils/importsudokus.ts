@@ -1,17 +1,14 @@
-// src/utils/importsudokus.ts
+import { sudokusOrdenados } from "../../scripts/sudokus_ordenados";
 
-// 🛑 IMPORTANTE: Reemplaza esta URL por el dominio real de tu proyecto en Vercel
-const BACKEND_URL = "https://sudokin.vercel.app"; /**
+/**
  * Consulta la base de datos global para obtener TODOS los sudokus.
+ * (Ahora es local para modo estático)
  */
-export const getImportedSudokusGlobal = async (): Promise<number[][]> => {
+export const getImportedSudokusGlobal = async (): Promise<{ id: number, grid: number[] }[]> => {
   try {
-    // 🛑 Ahora el celular apunta directamente a Vercel
-    const res = await fetch(`${BACKEND_URL}/api/sudokus`);
-    const data = await res.json();
-    return data.sudokus || [];
+    return sudokusOrdenados || [];
   } catch (error) {
-    console.error("Error conectando con la base de datos global:", error);
+    console.error("Error obteniendo los sudokus locales:", error);
     return [];
   }
 };
@@ -23,18 +20,11 @@ export const guardarSudokuImportado = async (
   nuevoGrid: number[],
 ): Promise<void> => {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/sudokus`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ grid: nuevoGrid }),
-    });
+    // Al ser offline, puedes guardarlo temporalmente si tienes LocalStorage, 
+    // o ignorar por ahora si era exclusivo para llenar tu base global
+    console.log("🌍 Guardado simulado. Sudoku procesado correctamente.", nuevoGrid);
 
-    if (res.ok) {
-      console.log(
-        "🌍 Sudoku enviado a la nube. (Postgres ignorará si es duplicado).",
-      );
-    }
   } catch (error) {
-    console.error("Error guardando en la base de datos global:", error);
+    console.error("Error guardando el sudoku (offline):", error);
   }
 };

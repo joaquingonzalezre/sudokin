@@ -17,7 +17,8 @@ import { useGameMemory } from "../hooks/useGameMemory";
 import { HintResult, HighlightInstruction } from "../logic/hints/types";
 import { getHint } from "../logic/hintManager";
 import { useGameHistory } from "../hooks/useGameHistory";
-import { getRandomPuzzle, Difficulty } from "../data/puzzles";
+import { getRandomPuzzle, getPuzzleById, Difficulty } from "../data/puzzles";
+import { sudokusOrdenados } from "../../scripts/sudokus_ordenados";
 import { scanFilteredDigits } from "../services/ocrService";
 import {
   sliceImageInto81,
@@ -122,7 +123,7 @@ export default function SudokuBoard() {
   const [isSmartNotes, setIsSmartNotes] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [showDifficultyModal, setShowDifficultyModal] = useState(false);
-  const [isCandidateHighlightOn, setIsCandidateHighlightOn] = useState(true);
+  const [isCandidateHighlightOn, setIsCandidateHighlightOn] = useState(false);
 
   const [currentDifficulty, setCurrentDifficulty] = useState<string | null>(
     null,
@@ -209,9 +210,12 @@ export default function SudokuBoard() {
     setHintHistory([]); // 🛑 Limpiamos el tracker
   };
 
-  const handleNewGame = (difficulty: Difficulty) => {
+  const handleNewGame = (difficulty: Difficulty, specificId?: number) => {
     setShowDifficultyModal(false);
-    const newPuzzleNumbers = getRandomPuzzle(difficulty);
+    const newPuzzleNumbers = specificId
+      ? getPuzzleById(specificId)
+      : getRandomPuzzle(difficulty);
+
     if (!newPuzzleNumbers.some((n) => n !== 0)) {
       alert(`⚠️ Aún no hay puzzles cargados.`);
       return;
@@ -1001,31 +1005,6 @@ export default function SudokuBoard() {
         mobileFooter={mobileFooterNode}
       />
 
-      {/* 📊 VISUALIZADOR DEL TRACKER DE PISTAS */}
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 20px" }}>
-        <div
-          style={{
-            marginTop: "30px",
-            padding: "16px",
-            backgroundColor: "#111",
-            color: "#10b981",
-            fontFamily: "monospace",
-            borderRadius: "12px",
-            fontSize: "14px",
-            border: "1px solid #374151",
-          }}
-        >
-          <span style={{ color: "#fff", fontWeight: "bold" }}>
-            📡 HISTORIAL DE TELEMETRÍA:
-          </span>
-          <br />
-          <br />
-          {hintHistory.length === 0
-            ? "El jugador no ha usado ninguna pista aún."
-            : hintHistory.join("  ➔  ")}
-        </div>
-      </div>
-
       <GameModals
         showDifficultyModal={showDifficultyModal}
         setShowDifficultyModal={setShowDifficultyModal}
@@ -1040,6 +1019,7 @@ export default function SudokuBoard() {
         setAutoPauseEnabled={setAutoPauseEnabled}
         handleRestart={handleResetCurrent}
         onToggleWinModal={() => setIsGameWon(false)}
+        totalSudokusCount={sudokusOrdenados.length}
       />
     </div>
   );

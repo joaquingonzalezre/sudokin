@@ -139,7 +139,7 @@ export default function SudokuGrid({
                               justifyContent: "center",
                               color: isSelectedCand ? "#000" : "#666",
                               fontWeight: isSelectedCand ? "900" : "normal",
-                              backgroundColor: isSelectedCand ? "#fda4af" : "transparent",
+                              backgroundColor: isSelectedCand ? "#38bdf8" : "transparent",
                               borderRadius: "2px",
                               transition: "all 0.1s",
                               width: "100%",

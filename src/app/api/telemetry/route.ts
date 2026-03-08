@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { neon } from "@neondatabase/serverless";
+
+export const dynamic = "force-static"; // Forzamos static para Capacitor
 
 // 🛡️ SALVOCONDUCTO PARA LA APP MÓVIL (CORS)
 const corsHeaders = {
@@ -14,41 +15,22 @@ export async function OPTIONS() {
 
 export async function POST(request: Request) {
   try {
-    // 1. Verificamos la conexión a Neon
-    if (!process.env.DATABASE_URL) {
-      throw new Error("Falta la variable DATABASE_URL");
-    }
-    const sql = neon(process.env.DATABASE_URL);
-
-    // 2. Recibimos el paquete del SudokuBoard
     const body = await request.json();
     const { puzzle, historyCount, totalSteps, calculatedDifficulty } = body;
 
-    // 3. Preparamos los datos
-    // Convertimos el grid inicial [4,0,0...] a texto "4,0,0..."
-    const puzzleString = puzzle.join(",");
-
-    // Convertimos el historial de lógicas a un string JSON seguro para Neon
-    const logicHistoryJson = JSON.stringify(historyCount);
-
-    // 4. Guardamos en la base de datos
-    await sql`
-      INSERT INTO telemetry_stats (puzzle_string, difficulty, total_steps, logic_history) 
-      VALUES (${puzzleString}, ${calculatedDifficulty}, ${totalSteps}, ${logicHistoryJson}::jsonb)
-    `;
-
+    // Solo hacemos log local en la consola temporalmente.
     console.log(
-      `✅ Telemetría guardada en Neon: ${calculatedDifficulty} (${totalSteps} pasos)`,
+      `✅ Telemetría leída en modo Offline: Dificultad Evaluada ${calculatedDifficulty} (${totalSteps} pasos)`,
     );
 
     return NextResponse.json(
-      { success: true, message: "Datos de partida guardados en Neon" },
+      { success: true, message: "Telemetría simulada (Offline)" },
       { status: 200, headers: corsHeaders },
     );
   } catch (error) {
-    console.error("❌ Error guardando telemetría en Neon:", error);
+    console.error("❌ Error leyendo telemetría:", error);
     return NextResponse.json(
-      { success: false, error: "Fallo en la base de datos" },
+      { success: false, error: "Fallo leyendo el request" },
       { status: 500, headers: corsHeaders },
     );
   }

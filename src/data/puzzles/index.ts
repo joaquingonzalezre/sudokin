@@ -1,9 +1,4 @@
-import { easyPuzzles } from "./easy";
-import { mediumPuzzles } from "./medium";
-import { hardPuzzles } from "./hard";
-import { expertPuzzles } from "./expert";
-import { dailiesPuzzles } from "./dailies";
-import { nightmarePuzzles } from "./nightmare";
+import { sudokusOrdenados } from "../../../scripts/sudokus_ordenados";
 
 // Definimos los niveles posibles
 export type Difficulty =
@@ -11,41 +6,52 @@ export type Difficulty =
   | "medium"
   | "hard"
   | "expert"
-  | "dailies"
-  | "nightmare";
+  | "importado";
 
+/**
+ * Obtiene un Sudoku específico por su ID (1-indexed)
+ */
+export const getPuzzleById = (id: number): number[] => {
+  const found = sudokusOrdenados.find(s => s.id === id);
+  return found ? found.grid : Array(81).fill(0);
+};
+
+/**
+ * Obtiene un Sudoku aleatorio basado en el rango de dificultad deseado
+ */
 export const getRandomPuzzle = (difficulty: Difficulty): number[] => {
-  let collection: number[][] = [];
+  if (difficulty === "importado") return Array(81).fill(0);
+
+  const total = sudokusOrdenados.length;
+  const quadrant = Math.floor(total / 4);
+
+  let minId = 1;
+  let maxId = total;
 
   switch (difficulty) {
     case "easy":
-      collection = easyPuzzles;
+      minId = 1;
+      maxId = quadrant;
       break;
     case "medium":
-      collection = mediumPuzzles;
+      minId = quadrant + 1;
+      maxId = quadrant * 2;
       break;
     case "hard":
-      collection = hardPuzzles;
+      minId = quadrant * 2 + 1;
+      maxId = quadrant * 3;
       break;
     case "expert":
-      collection = expertPuzzles;
+      minId = quadrant * 3 + 1;
+      maxId = total;
       break;
-    case "dailies":
-      collection = dailiesPuzzles;
-      break;
-    case "nightmare":
-      collection = nightmarePuzzles;
-      break;
-    default:
-      collection = easyPuzzles;
   }
 
-  // Si la colección está vacía (por si aún no llenas algún archivo), devuelve uno vacío para no romper la app
-  if (collection.length === 0) {
-    return Array(81).fill(0);
-  }
+  // Filtrar los que están en el rango
+  const pool = sudokusOrdenados.filter(s => s.id >= minId && s.id <= maxId);
 
-  // Selección aleatoria
-  const randomIndex = Math.floor(Math.random() * collection.length);
-  return collection[randomIndex];
+  if (pool.length === 0) return Array(81).fill(0);
+
+  const randomIndex = Math.floor(Math.random() * pool.length);
+  return pool[randomIndex].grid;
 };

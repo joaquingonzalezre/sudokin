@@ -1,8 +1,8 @@
-"use client";
-import React, { RefObject } from "react";
+import React, { RefObject, useState, useMemo } from "react";
 import { Difficulty } from "../data/puzzles";
 
 // --- ÍCONOS EXCLUSIVOS DE LOS MODALES ---
+// (No cambian...)
 const PauseIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -154,7 +154,7 @@ const Modal = ({
 interface GameModalsProps {
   showDifficultyModal: boolean;
   setShowDifficultyModal: (show: boolean) => void;
-  handleNewGame: (difficulty: Difficulty) => void;
+  handleNewGame: (difficulty: Difficulty, specificId?: number) => void;
   fileInputRef: RefObject<HTMLInputElement | null>;
   isScanning: boolean;
   isPaused: boolean;
@@ -165,6 +165,7 @@ interface GameModalsProps {
   setAutoPauseEnabled: (enabled: boolean) => void;
   handleRestart: () => void;
   onToggleWinModal: () => void;
+  totalSudokusCount: number;
 }
 
 export default function GameModals({
@@ -181,96 +182,164 @@ export default function GameModals({
   setAutoPauseEnabled,
   handleRestart,
   onToggleWinModal,
+  totalSudokusCount,
 }: GameModalsProps) {
+  const [tempDifficulty, setTempDifficulty] = useState<Difficulty | null>(null);
+  const [selectedId, setSelectedId] = useState<number>(1);
+
+  const quadrantRanges = useMemo(() => {
+    const q = Math.floor(totalSudokusCount / 4);
+    return {
+      easy: { min: 1, max: q },
+      medium: { min: q + 1, max: q * 2 },
+      hard: { min: q * 2 + 1, max: q * 3 },
+      expert: { min: q * 3 + 1, max: totalSudokusCount },
+    };
+  }, [totalSudokusCount]);
+
+  const handleDifficultySelect = (diff: Difficulty) => {
+    setTempDifficulty(diff);
+    if (diff !== "importado") {
+      setSelectedId(quadrantRanges[diff].min);
+    }
+  };
+
+  const closeModal = () => {
+    setShowDifficultyModal(false);
+    setTempDifficulty(null);
+  };
+
   return (
     <>
       {/* 1. MODAL DE DIFICULTAD */}
       {showDifficultyModal && (
         <Modal
-          title="Elige Dificultad"
-          onClose={() => setShowDifficultyModal(false)}
+          title={!tempDifficulty ? "Elige Dificultad" : "Selecciona Nivel"} // <-- TEXTO DEL TÍTULO DE LAS VENTANAS
+          onClose={closeModal}
         >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "10px",
-            }}
-          >
-            <button
+          {!tempDifficulty ? (
+            <div
               style={{
-                padding: "12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "8px",
-                fontWeight: "bold",
-                backgroundColor: "white",
-                cursor: "pointer",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "10px",
               }}
-              onClick={() => handleNewGame("easy")}
             >
-              Fácil
-            </button>
-            <button
-              style={{
-                padding: "12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "8px",
-                fontWeight: "bold",
-                backgroundColor: "white",
-                cursor: "pointer",
-              }}
-              onClick={() => handleNewGame("medium")}
-            >
-              Intermedio
-            </button>
-            <button
-              style={{
-                padding: "12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "8px",
-                fontWeight: "bold",
-                backgroundColor: "white",
-                cursor: "pointer",
-              }}
-              onClick={() => handleNewGame("hard")}
-            >
-              Difícil
-            </button>
-            <button
-              style={{
-                padding: "12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "8px",
-                fontWeight: "bold",
-                backgroundColor: "white",
-                cursor: "pointer",
-              }}
-              onClick={() => handleNewGame("expert")}
-            >
-              Experto
-            </button>
+              {(["easy", "medium", "hard", "expert"] as Difficulty[]).map((diff) => (
+                <button
+                  key={diff}
+                  style={{
+                    padding: "16px",
+                    border: "2px solid #e5e7eb",
+                    borderRadius: "12px",
+                    fontWeight: "900",
+                    backgroundColor: "white",
+                    cursor: "pointer",
+                    textTransform: "uppercase",
+                    fontSize: "14px",
+                    letterSpacing: "1px",
+                  }}
+                  onClick={() => handleDifficultySelect(diff)}
+                >
+                  {diff === "easy" ? "Fácil" : diff === "medium" ? "Intermedio" : diff === "hard" ? "Difícil" : "Experto"}
+                </button>
+              ))}
 
-            <button
-              onClick={() => {
-                setShowDifficultyModal(false);
-                fileInputRef.current?.click();
-              }}
-              disabled={isScanning}
-              style={{
-                gridColumn: "span 2",
-                padding: "12px",
-                border: "1px solid #3b82f6",
-                borderRadius: "8px",
-                fontWeight: "bold",
-                backgroundColor: isScanning ? "#fcd34d" : "#eff6ff",
-                borderColor: isScanning ? "#f59e0b" : "#3b82f6",
-                color: isScanning ? "#b45309" : "#1d4ed8",
-                cursor: isScanning ? "wait" : "pointer",
-              }}
-            >
-              {isScanning ? "Escaneando..." : "Importar Sudoku 📸"}
-            </button>
-          </div>
+              <button
+                onClick={() => {
+                  setShowDifficultyModal(false);
+                  fileInputRef.current?.click();
+                }}
+                disabled={isScanning}
+                style={{
+                  gridColumn: "span 2",
+                  padding: "16px",
+                  border: "2px solid #3b82f6",
+                  borderRadius: "12px",
+                  fontWeight: "bold",
+                  backgroundColor: isScanning ? "#fcd34d" : "#eff6ff",
+                  borderColor: "#3b82f6",
+                  color: "#1d4ed8",
+                  cursor: isScanning ? "wait" : "pointer",
+                  marginTop: "10px",
+                }}
+              >
+                {isScanning ? "Escaneando..." : "Importar Sudoku 📸"}
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+              <div
+                style={{
+                  backgroundColor: "#fef3c7",
+                  padding: "12px",
+                  borderRadius: "12px",
+                  border: "2px solid #f59e0b",
+                  fontWeight: "900",
+                  textTransform: "uppercase",
+                  color: "#d97706",
+                }}
+              >
+                {tempDifficulty === "easy" ? "Fácil" : tempDifficulty === "medium" ? "Intermedio" : tempDifficulty === "hard" ? "Difícil" : "Experto"} {/* <-- TEXTO DE LA DIFICULTAD SELECCIONADA */}
+              </div>
+
+              <div style={{ padding: "0 10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px", alignItems: "center" }}>
+                  <span style={{ fontWeight: "bold", color: "#6b7280", fontSize: "12px" }}>+fácil</span>
+                  <span style={{ fontWeight: "900", color: "#ef4444", fontSize: "18px" }}>Sudoku {selectedId}</span>
+                  <span style={{ fontWeight: "bold", color: "#6b7280", fontSize: "12px" }}>+difícil</span>
+                </div>
+
+                <input
+                  type="range"
+                  min={quadrantRanges[tempDifficulty as keyof typeof quadrantRanges].min}
+                  max={quadrantRanges[tempDifficulty as keyof typeof quadrantRanges].max}
+                  value={selectedId}
+                  onChange={(e) => setSelectedId(parseInt(e.target.value))}
+                  style={{
+                    width: "100%",
+                    cursor: "pointer",
+                    height: "8px",
+                    accentColor: "black"
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <button
+                  style={{
+                    padding: "14px",
+                    border: "2px solid #d1d5db",
+                    borderRadius: "12px",
+                    fontWeight: "bold",
+                    backgroundColor: "white",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => setTempDifficulty(null)}
+                >
+                  Atrás {/* <-- TEXTO BOTÓN VOLVER */}
+                </button>
+                <button
+                  style={{
+                    padding: "14px",
+                    border: "none",
+                    borderRadius: "12px",
+                    fontWeight: "900",
+                    backgroundColor: "black",
+                    color: "white",
+                    cursor: "pointer",
+                    textTransform: "uppercase",
+                  }}
+                  onClick={() => {
+                    handleNewGame(tempDifficulty, selectedId);
+                    setTempDifficulty(null);
+                  }}
+                >
+                  ¡Jugar! {/* <-- TEXTO BOTÓN CONFIRMAR */}
+                </button>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
 
