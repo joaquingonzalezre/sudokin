@@ -44,29 +44,15 @@ export default function ControlTools({
       }}
     >
       {/* SECCIÓN PISTAS - ÚNICA RESPONSABILIDAD AHORA */}
-      <div>
-        <button
-          onClick={onHint}
-          style={{
-            ...btnStyle,
-            backgroundColor: isHintActive ? "#3b82f6" : "#fef3c7",
-            borderColor: isHintActive ? "#2563eb" : "#f59e0b",
-            color: isHintActive ? "white" : "#d97706",
-            marginBottom: isHintActive ? "8px" : "0",
-            padding: "12px",
-            fontSize: "16px",
-          }}
-        >
-          {!isHintActive
-            ? "💡 Pedir Pista"
-            : currentStep + 1 === totalSteps
-              ? `✨ Aplicar Jugada (${currentStep + 1}/${totalSteps})`
-              : `➡️ Siguiente Paso (${currentStep + 1}/${totalSteps})`}
-        </button>
-
+      <div style={{ position: "relative" }}>
         {isHintActive && (
           <div
             style={{
+              position: "absolute",
+              bottom: "100%",
+              left: 0,
+              right: 0,
+              marginBottom: "8px",
               border: "2px solid #f59e0b",
               borderRadius: "8px",
               padding: "16px 12px 12px 12px",
@@ -76,8 +62,8 @@ export default function ControlTools({
               alignItems: "center",
               justifyContent: "center",
               textAlign: "center",
-              boxShadow: "inset 0 2px 4px rgba(0,0,0,0.05)",
-              position: "relative",
+              boxShadow: "0 -4px 12px rgba(0,0,0,0.15), inset 0 2px 4px rgba(0,0,0,0.05)",
+              zIndex: 50,
             }}
           >
             <button
@@ -114,6 +100,25 @@ export default function ControlTools({
             </p>
           </div>
         )}
+
+        <button
+          onClick={onHint}
+          style={{
+            ...btnStyle,
+            backgroundColor: isHintActive ? "#3b82f6" : "#fef3c7",
+            borderColor: isHintActive ? "#2563eb" : "#f59e0b",
+            color: isHintActive ? "white" : "#d97706",
+            marginBottom: 0,
+            padding: "12px",
+            fontSize: "16px",
+          }}
+        >
+          {!isHintActive
+            ? "💡 Pedir Pista"
+            : currentStep + 1 === totalSteps
+              ? `✨ Aplicar Jugada (${currentStep + 1}/${totalSteps})`
+              : `➡️ Siguiente Paso (${currentStep + 1}/${totalSteps})`}
+        </button>
       </div>
     </div>
   );
