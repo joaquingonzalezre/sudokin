@@ -46,8 +46,16 @@ export const calculateAllCandidates = (
 
       // Revisar Fila y Columna
       for (let k = 0; k < 9; k++) {
-        if (grid[row * 9 + k] === num) conflictFound = true;
-        if (grid[k * 9 + col] === num) conflictFound = true;
+        const rowVal = grid[row * 9 + k];
+        const colVal = grid[k * 9 + col];
+        if (rowVal !== null && Number(rowVal) === num) {
+          conflictFound = true;
+          break;
+        }
+        if (colVal !== null && Number(colVal) === num) {
+          conflictFound = true;
+          break;
+        }
       }
 
       // Revisar Cuadrante (Box)
@@ -55,8 +63,13 @@ export const calculateAllCandidates = (
         for (let r = 0; r < 3; r++) {
           for (let c = 0; c < 3; c++) {
             const cellIndex = (boxStartRow + r) * 9 + (boxStartCol + c);
-            if (grid[cellIndex] === num) conflictFound = true;
+            const boxVal = grid[cellIndex];
+            if (boxVal !== null && Number(boxVal) === num) {
+              conflictFound = true;
+              break;
+            }
           }
+          if (conflictFound) break;
         }
       }
 

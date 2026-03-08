@@ -30,7 +30,12 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
         const r1 = rowPositions[i];
         const r2 = rowPositions[j];
 
-        if (r1.cols[0] === r2.cols[0] && r1.cols[1] === r2.cols[1]) {
+        if (
+          r1.cols[0] === r2.cols[0] &&
+          r1.cols[1] === r2.cols[1] &&
+          Math.floor(r1.row / 3) !== Math.floor(r2.row / 3) &&
+          Math.floor(r1.cols[0] / 3) !== Math.floor(r1.cols[1] / 3)
+        ) {
           const col1Indices = getColIndices(r1.cols[0]);
           const col2Indices = getColIndices(r1.cols[1]);
 
@@ -113,7 +118,12 @@ export const findXWing: HintStrategy = (grid, internalCandidates) => {
         const c1 = colPositions[i];
         const c2 = colPositions[j];
 
-        if (c1.rows[0] === c2.rows[0] && c1.rows[1] === c2.rows[1]) {
+        if (
+          c1.rows[0] === c2.rows[0] &&
+          c1.rows[1] === c2.rows[1] &&
+          Math.floor(c1.col / 3) !== Math.floor(c2.col / 3) &&
+          Math.floor(c1.rows[0] / 3) !== Math.floor(c1.rows[1] / 3)
+        ) {
           const row1Indices = getRowIndices(c1.rows[0]);
           const row2Indices = getRowIndices(c1.rows[1]);
 

@@ -1,0 +1,55 @@
+# Cómo funcionan las APIs de Inteligencia Artificial en nuestro código
+
+¡Hola! Si eres nuevo en el proyecto, aquí tienes una explicación paso a paso de cómo integramos la Inteligencia Artificial (IA) usando +
+como ejemplo la funcionalidad de importar un Sudoku desde una imagen.
+
+En nuestro código, la importación inicia cuando el usuario sube una foto y se ejecuta la función `processImageFile` 
+(en `SudokuBoard.tsx`). Esta función actúa como directora de orquesta para conectar la interfaz con la Inteligencia Artificial.
+
+Aquí te explico cómo ocurre la magia paso a paso:
+
+## Paso 1: Preparación de los datos (Pre-procesamiento)
+No enviamos la foto completa directamente a la IA, ya que puede confundirse o tardar más. Primero, limpiamos y empaquetamos la información:
+1. **Recorte e Identificación de celdas:** Extraemos la cuadrícula y la dividimos en 81 pedacitos (uno por cada celda) usando 
+`sliceImageInto81`.
+2. **Filtrado:** Descartamos las celdas vacías (`hasInk`) y creamos un "collage" optimizado que contiene únicamente 
+los recuadros que sí tienen números (`createSudokuCollage`).
+
+## Paso 2: Preparación de la llamada a la API
+Con nuestro collage listo, ejecutamos `scanFilteredDigits` (en `src/services/ocrService.ts`). Aquí armamos la conexión con la API de IA.
+1. **Autenticación (API Key):** Se necesita una "llave" (`NEXT_PUBLIC_OPENROUTER_API_KEY`) que compruebe que estamos autorizados para usar 
+el servicio.
+2. **El Endpoint (URL):** Nos comunicamos con `https://openrouter.ai/api/v1/chat/completions` (un servicio intermediario para acceder al
+ modelo GPT-4o de OpenAI).
+
+## Paso 3: Envío de las instrucciones (El "Prompt")
+A través de una petición HTTP (`fetch`), le enviamos un paquete de datos (JSON) a la IA indicándole exactamente qué queremos:
+- **Modelo y Comportamiento:** Le decimos que use el modelo `openai/gpt-4o` con "temperatura" 0.0, lo que significa que no queremos
+ respuestas creativas, sino lógicas, estrictas y siempre consistentes.
+- **El Prompt (Instrucciones Claras):** Le damos el rol: *"Eres un OCR numérico de alta precisión. Te envío un collage con exactamente
+ N dígitos"*.
+- **Reglas Restrictivas:** Le obligamos a responder únicamente con números separados por comas, y usar `?` si un número es ilegible.
+- **La Imagen:** Incluimos la imagen del collage codificada en un formato de texto largo llamado Base64.
+
+## Paso 4: Recepción, Limpieza y Conversión (Sanitización)
+La IA "piensa" y nuestros servidores reciben un JSON de respuesta.
+1. Extraemos el mensaje de la IA ubicado en la ruta `data.choices[0].message.content`.
+2. **Limpieza (Muy Importante):** Nunca debemos confiar ciegamente en lo que responde la IA. Si la IA añadió texto que no pedimos 
+(ej: "Aquí tienes los números..."), nuestro código lo limpia con una expresión regular (`replace(/[^0-9?,]/g, "")`) para quedarnos 
+estrictamente con los dígitos.
+3. Convertimos esa cadena de texto separada por comas en un Array de números manejable por JavaScript.
+
+## Paso 5: Guardado y Reacción de la Interfaz
+1. **Sincronización:** Los números obtenidos por la IA se colocan en su posición original correspondiente, formando un tablero inicial 
+(`finalHybridGrid`).
+2. **Envío a nuestra nube:** Se llama a la función `guardarSudokuImportado` (desde `importsudokus.ts`) para mandar el tablero resuelto
+ a *nuestra propia base de datos global* (backend).
+3. **Pintado en Pantalla:** El tablero en la pantalla de React se actualiza, el cronómetro comienza en 0, y el usuario ya puede jugar
+ el sudoku que escaneó.
+
+### En Resumen
+Integrar una API de IA consiste en:
+1. **Digerir la información** (Hacerle el proceso fácil a la IA).
+2. **Comunicarse por HTTP** (Enviar un prompt claro y datos puros a un Endpoint usando una Key).
+3. **Limpiar la respuesta** (Asegurarnos de que el output nos sirva en nuestro código y desechar charlatanería de la IA).
+4. **Usar los datos** de la misma forma en que usaríamos la información que ingresa un usuario normalmente.

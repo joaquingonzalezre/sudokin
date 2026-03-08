@@ -16,6 +16,7 @@ interface SudokuGridProps {
   highlights: HighlightInstruction;
   isPaused: boolean;
   isGameWon: boolean;
+  isCandidateHighlightOn: boolean;
 }
 
 export default function SudokuGrid({
@@ -30,6 +31,7 @@ export default function SudokuGrid({
   highlights,
   isPaused,
   isGameWon,
+  isCandidateHighlightOn,
 }: SudokuGridProps) {
   return (
     <div
@@ -79,6 +81,8 @@ export default function SudokuGrid({
               grid,
             );
 
+            const selectedVal = selectedIdx !== null ? grid[selectedIdx] : null;
+
             return (
               <div
                 key={globalIdx}
@@ -101,38 +105,55 @@ export default function SudokuGrid({
                   cursor: "pointer",
                   width: "100%",
                   height: "100%",
+                  overflow: "hidden", // 🛡️ Evita que el contenido rompa el layout
+                  position: "relative",
                 }}
               >
                 {val !== null
                   ? val
                   : showCandidates &&
-                    candidates.length > 0 && (
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(3, 1fr)",
-                          width: "100%",
-                          height: "100%",
-                          padding: "2px",
-                        }}
-                      >
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((c) => (
+                  candidates.length > 0 && (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, 1fr)",
+                        gridTemplateRows: "repeat(3, 1fr)",
+                        width: "100%",
+                        height: "100%",
+                        padding: "2px",
+                        boxSizing: "border-box",
+                        minWidth: 0,
+                        minHeight: 0,
+                      }}
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((c) => {
+                        const isPresent = candidates.includes(c);
+                        const isSelectedCand = isCandidateHighlightOn && isPresent && selectedVal !== null && c === selectedVal;
+                        return (
                           <div
                             key={c}
                             style={{
-                              fontSize: "clamp(0.5rem, 2vw, 0.7rem)",
+                              fontSize: "clamp(0.4rem, 1.8vw, 0.65rem)",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              color: "#666",
-                              fontWeight: "normal",
+                              color: isSelectedCand ? "#000" : "#666",
+                              fontWeight: isSelectedCand ? "900" : "normal",
+                              backgroundColor: isSelectedCand ? "#fda4af" : "transparent",
+                              borderRadius: "2px",
+                              transition: "all 0.1s",
+                              width: "100%",
+                              height: "100%", // Ocupa su espacio del grid sin empujar
+                              boxSizing: "border-box",
+                              lineHeight: 1,
                             }}
                           >
-                            {candidates.includes(c) ? c : ""}
+                            {isPresent ? c : ""}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        );
+                      })}
+                    </div>
+                  )}
               </div>
             );
           })}

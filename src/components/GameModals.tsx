@@ -155,8 +155,8 @@ interface GameModalsProps {
   showDifficultyModal: boolean;
   setShowDifficultyModal: (show: boolean) => void;
   handleNewGame: (difficulty: Difficulty) => void;
-  fileInputRef: RefObject<HTMLInputElement | null>; // ✅ AHORA ACEPTA NULL  isScanning: boolean;
-  isScanning: boolean; // 🛑 ESTA ES LA LÍNEA QUE FALTABA
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  isScanning: boolean;
   isPaused: boolean;
   isGameWon: boolean;
   timeFormatted: string;
@@ -164,6 +164,7 @@ interface GameModalsProps {
   autoPauseEnabled: boolean;
   setAutoPauseEnabled: (enabled: boolean) => void;
   handleRestart: () => void;
+  onToggleWinModal: () => void;
 }
 
 export default function GameModals({
@@ -179,6 +180,7 @@ export default function GameModals({
   autoPauseEnabled,
   setAutoPauseEnabled,
   handleRestart,
+  onToggleWinModal,
 }: GameModalsProps) {
   return (
     <>
@@ -352,6 +354,7 @@ export default function GameModals({
         <Modal
           title="¡Felicidades!"
           icon={<div style={{ fontSize: "60px" }}>🏆</div>}
+          onClose={onToggleWinModal}
         >
           <div
             style={{ display: "flex", flexDirection: "column", gap: "16px" }}

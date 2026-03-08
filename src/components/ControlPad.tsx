@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 
 interface ControlPadProps {
   onNumberClick: (num: number) => void;
@@ -18,6 +18,8 @@ interface ControlPadProps {
   onRestoreNotesClick: () => void;
   hasManualNotesBackup: boolean;
   isWeb?: boolean;
+  isCandidateHighlightOn: boolean;
+  onToggleCandidateHighlight: () => void;
 }
 
 export default function ControlPad({
@@ -36,7 +38,35 @@ export default function ControlPad({
   onRestoreNotesClick,
   hasManualNotesBackup,
   isWeb = false,
+  isCandidateHighlightOn,
+  onToggleCandidateHighlight,
 }: ControlPadProps) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignorar si el usuario está escribiendo en algún input (si llegara a haber en el futuro)
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      if (e.key >= "1" && e.key <= "9") {
+        const num = parseInt(e.key, 10);
+        if (!completedNumbers.includes(num)) {
+          onNumberClick(num);
+        }
+      } else if (e.key === " " || e.code === "Space") {
+        // Prevenir el comportamiento por defecto (scroll) al apretar espacio
+        e.preventDefault();
+        setInputMode((prev) => (prev === "normal" ? "candidate" : "normal"));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [completedNumbers, onNumberClick, setInputMode]);
+
   const numberBtnStyle = {
     border: "1px solid #d1d5db",
     borderRadius: "8px",
@@ -190,25 +220,28 @@ export default function ControlPad({
               color: hasManualNotesBackup ? "#1e40af" : "#374151",
             }}
           >
-            {hasManualNotesBackup ? "Volver a Mis Notas" : "Mis Notas"}
+            {hasManualNotesBackup ? "Ver Mis Notas" : "Ver Notas IA"}
           </button>
-          <button onClick={onToggleSmartNotes} style={smallActionBtnStyle}>
-            SmartNotes: {smartNotesMode ? "ON" : "OFF"}
+          <button
+            onClick={onCreateCandidates}
+            style={{ ...smallActionBtnStyle, color: "#374151" }}
+          >
+            Recalcular Notas AI
           </button>
         </div>
         {/* Nueva Fila Inferior de 2 Columnas */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
+            gridTemplateColumns: "repeat(3, 1fr)",
             gap: "6px",
           }}
         >
-          <button
-            onClick={onCreateCandidates}
-            style={{ ...smallActionBtnStyle, color: "#374151" }}
-          >
-            Crear Notas
+          <button onClick={onToggleSmartNotes} style={smallActionBtnStyle}>
+            SmartNotes: {smartNotesMode ? "ON" : "OFF"}
+          </button>
+          <button onClick={onToggleCandidateHighlight} style={smallActionBtnStyle}>
+            Color Cand: {isCandidateHighlightOn ? "ON" : "OFF"}
           </button>
           <button onClick={onClearCandidatesClick} style={smallActionBtnStyle}>
             Limpiar Notas

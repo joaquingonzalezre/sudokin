@@ -7,6 +7,11 @@ import {
   toggleCandidate,
   calculateAllCandidates,
 } from "../logic/candidateManager";
+// 🧪 Importaciones directas para el Laboratorio de Pruebas
+import { findXWing } from "../logic/hints/xWing";
+import { findYWing } from "../logic/hints/yWing";
+import { findSwordfish } from "../logic/hints/swordfish";
+import { findXYChain } from "../logic/hints/xyChain";
 import { getCompletedNumbers } from "../utils/numberTracker";
 import { useGameMemory } from "../hooks/useGameMemory";
 import { HintResult, HighlightInstruction } from "../logic/hints/types";
@@ -107,14 +112,17 @@ export default function SudokuBoard() {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isGameWon, setIsGameWon] = useState(false);
+  const [isGameWonPersistent, setIsGameWonPersistent] = useState(false);
   const [inputMode, setInputMode] = useState<"normal" | "candidate">("normal");
   const [showCandidates, setShowCandidates] = useState(false);
   const [manualNotesBackup, setManualNotesBackup] =
     useState<CandidateGridType | null>(null);
+  const [aiNotes, setAiNotes] = useState<CandidateGridType | null>(null);
   const [autoPauseEnabled, setAutoPauseEnabled] = useState(true);
-  const [isSmartNotes, setIsSmartNotes] = useState(false);
+  const [isSmartNotes, setIsSmartNotes] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [showDifficultyModal, setShowDifficultyModal] = useState(false);
+  const [isCandidateHighlightOn, setIsCandidateHighlightOn] = useState(true);
 
   const [currentDifficulty, setCurrentDifficulty] = useState<string | null>(
     null,
@@ -161,6 +169,19 @@ export default function SudokuBoard() {
   useEffect(() => {
     const savedDifficulty = localStorage.getItem("sudoku_saved_difficulty");
     if (savedDifficulty) setCurrentDifficulty(savedDifficulty);
+
+    // 🚫 Deshabilitar scroll en el body y html para "Movimiento Cero"
+    document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.height = "100vh";
+    document.body.style.overflow = "hidden";
+    document.body.style.height = "100vh";
+    document.body.style.margin = "0";
+    document.body.style.padding = "0";
+
+    return () => {
+      document.documentElement.style.overflow = "auto";
+      document.body.style.overflow = "auto";
+    };
   }, []);
 
   useEffect(() => {
@@ -174,36 +195,22 @@ export default function SudokuBoard() {
   }, []);
 
   const handleResetCurrent = () => {
-    if (!isRunning && initialPuzzle.every((n) => n === 0)) return;
-    if (
-      !window.confirm(
-        "¿Reiniciar este puzzle? Se borrará todo tu progreso actual.",
-      )
-    )
-      return;
     const resetGrid = initialPuzzle.map((n) => (n === 0 ? null : n));
     setGrid(resetGrid);
     setCandidatesGrid(generateEmptyCandidates(resetGrid));
     setTime(0);
     setIsPaused(false);
     setIsGameWon(false);
+    setIsGameWonPersistent(false);
     setSelectedIdx(null);
     setManualNotesBackup(null);
+    setAiNotes(null);
     cancelHint();
     setHintHistory([]); // 🛑 Limpiamos el tracker
   };
 
   const handleNewGame = (difficulty: Difficulty) => {
     setShowDifficultyModal(false);
-    const hasNumbers = grid.some((n) => n !== null);
-    if (hasNumbers && !isGameWon) {
-      if (
-        !window.confirm(
-          `¿Iniciar nuevo juego nivel ${difficulty.toUpperCase()}? Se perderá el progreso actual.`,
-        )
-      )
-        return;
-    }
     const newPuzzleNumbers = getRandomPuzzle(difficulty);
     if (!newPuzzleNumbers.some((n) => n !== 0)) {
       alert(`⚠️ Aún no hay puzzles cargados.`);
@@ -218,10 +225,12 @@ export default function SudokuBoard() {
     setTime(0);
     setIsPaused(false);
     setIsGameWon(false);
+    setIsGameWonPersistent(false);
     setIsRunning(true);
     setSelectedIdx(null);
     setShowCandidates(false);
     setManualNotesBackup(null);
+    setAiNotes(calculateAllCandidates(newGrid)); // ✅ Pre-calculate AI notes
     cancelHint();
     setHintHistory([]); // 🛑 Limpiamos el tracker en nuevo juego
   };
@@ -230,30 +239,14 @@ export default function SudokuBoard() {
     if (isPaused || isGameWon) return;
 
     if (!hintState.active || !hintState.data) {
-      if (candidatesGrid.some((c, i) => grid[i] === null && c.length === 0)) {
-        if (
-          window.confirm(
-            "⚠️ Tienes celdas vacías sin ninguna nota. Para darte una pista exacta, necesito rellenar las notas básicas. ¿Permites que las auto-rellene?",
-          )
-        ) {
-          const perfect = calculateAllCandidates(grid);
-          setCandidatesGrid(perfect);
-          if (!showCandidates) setShowCandidates(true);
-        }
-        return;
-      }
-
-      const result = getHint(grid, candidatesGrid, candidatesGrid);
+      const isAiNotesActive = aiNotes !== null && manualNotesBackup !== null;
+      const result = getHint(grid, candidatesGrid, candidatesGrid, isAiNotesActive);
 
       if (!result.found) {
-        if (
-          window.confirm(
-            "🕵️‍♂️ La IA no encuentra un paso lógico. Es posible que te falten notas o borraras una correcta por accidente. ¿Quieres que la IA auto-restaure las notas para buscar de nuevo?",
-          )
-        ) {
-          const perfect = calculateAllCandidates(grid);
-          setCandidatesGrid(perfect);
-          if (!showCandidates) setShowCandidates(true);
+        if (!isAiNotesActive) {
+          alert("🕵️‍♂️ Actualmente con tus notas no se encuentran posibles pistas, intenta usando las notas IA");
+        } else {
+          alert("🕵️‍♂️ Actualmente no se encuentran posibles pistas ni con el motor avanzado de la IA. ¡Revisa si hay errores!");
         }
         return;
       }
@@ -343,6 +336,17 @@ export default function SudokuBoard() {
             setCandidatesGrid(newCandidates);
             if (!showCandidates) setShowCandidates(true);
           }
+
+          // ✅ FIX: Sincronizar Notas AI si la pista colocó un número
+          if ((act.type === "PLACE_NUMBER" || act.type === "PLACE") && aiNotes) {
+            // Reconstruimos el grid temporalmente para el cálculo, ya que el state aún no se actualiza
+            const tempGrid = [...grid];
+            const cellsToUpdate = act.cells || (act.cell !== undefined ? [act.cell] : []);
+            cellsToUpdate.forEach((idx: number) => {
+              tempGrid[idx] = act.value!;
+            });
+            setAiNotes(calculateAllCandidates(tempGrid));
+          }
         }
         cancelHint();
       }
@@ -358,6 +362,7 @@ export default function SudokuBoard() {
     showCandidates,
     cancelHint,
   ]);
+
 
   const processImageFile = async (file: File) => {
     setIsScanning(true);
@@ -397,8 +402,10 @@ export default function SudokuBoard() {
         setTime(0);
         cancelHint();
         setIsGameWon(false);
+        setIsGameWonPersistent(false);
         setIsRunning(true);
         setManualNotesBackup(null);
+        setAiNotes(calculateAllCandidates(newGrid)); // ✅ Pre-calculate AI notes
         setHintHistory([]);
       } else {
         alert("Error IA: " + (result.error || ""));
@@ -411,6 +418,8 @@ export default function SudokuBoard() {
       setShowDifficultyModal(false);
     }
   };
+
+
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -431,7 +440,11 @@ export default function SudokuBoard() {
     if (isPaused || isGameWon) return;
     saveSnapshot(grid, candidatesGrid);
     if (!manualNotesBackup) setManualNotesBackup([...candidatesGrid]);
-    setCandidatesGrid(calculateAllCandidates(grid));
+
+    // Al usar el botón 'Crear Notas', generamos nuevas notas IA o limpiamos si ya estaban generadas (esto actualiza aiNotes persistente)
+    const newNotes = calculateAllCandidates(grid);
+    setAiNotes(newNotes);
+    setCandidatesGrid(newNotes);
     setShowCandidates(true);
     cancelHint();
   }, [
@@ -446,22 +459,33 @@ export default function SudokuBoard() {
 
   const handleRestoreNotes = useCallback(() => {
     if (isPaused || isGameWon) return;
-    if (!manualNotesBackup) {
-      alert("Tus notas actuales ya son 'Mis Notas'.");
-      return;
-    }
     saveSnapshot(grid, candidatesGrid);
     cancelHint();
-    const restored = manualNotesBackup.map((notes, i) =>
-      grid[i] !== null ? [] : notes,
-    );
-    setCandidatesGrid(restored);
-    setManualNotesBackup(null);
-    if (!showCandidates) setShowCandidates(true);
+
+    if (!manualNotesBackup) {
+      setManualNotesBackup([...candidatesGrid]);
+
+      // Usa las aiNotes si ya existen, sino calcúlalas de nuevo.
+      const notesToUse = aiNotes ? [...aiNotes] : calculateAllCandidates(grid);
+      const filteredNotes = notesToUse.map((notes, i) => grid[i] !== null ? [] : notes);
+      setAiNotes(filteredNotes);
+
+      setCandidatesGrid(filteredNotes);
+      if (!showCandidates) setShowCandidates(true);
+    } else {
+      setAiNotes([...candidatesGrid]);
+      const restored = manualNotesBackup.map((notes, i) =>
+        grid[i] !== null ? [] : notes,
+      );
+      setCandidatesGrid(restored);
+      setManualNotesBackup(null);
+      if (!showCandidates) setShowCandidates(true);
+    }
   }, [
     grid,
     candidatesGrid,
     manualNotesBackup,
+    aiNotes,
     isPaused,
     isGameWon,
     saveSnapshot,
@@ -502,6 +526,11 @@ export default function SudokuBoard() {
           }
         }
         setCandidatesGrid(newCandidates);
+
+        // ✅ FIX: Sincronizar Notas AI en segundo plano si existen
+        if (aiNotes) {
+          setAiNotes(calculateAllCandidates(newGrid));
+        }
       } else {
         if (grid[selectedIdx] === null) {
           const newC = [...candidatesGrid];
@@ -534,6 +563,11 @@ export default function SudokuBoard() {
     const newGrid = [...grid];
     newGrid[selectedIdx] = null;
     setGrid(newGrid);
+
+    // ✅ FIX: Sincronizar Notas AI en segundo plano si existen
+    if (aiNotes) {
+      setAiNotes(calculateAllCandidates(newGrid));
+    }
   }, [
     grid,
     candidatesGrid,
@@ -551,7 +585,51 @@ export default function SudokuBoard() {
     cancelHint();
     setCandidatesGrid(Array.from({ length: 81 }, () => []));
     setManualNotesBackup(null);
+    setAiNotes(null); // ✅ Reset AI notes
   }, [grid, candidatesGrid, isPaused, isGameWon, saveSnapshot, cancelHint]);
+
+  // Navegación con teclado (Flechas)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignorar si el usuario está escribiendo en algún input
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      if (
+        e.key === "ArrowUp" ||
+        e.key === "ArrowDown" ||
+        e.key === "ArrowLeft" ||
+        e.key === "ArrowRight"
+      ) {
+        e.preventDefault(); // Evita que la pantalla haga scroll al usarlas
+
+        if (selectedIdx === null) {
+          // Si no hay celda seleccionada, empezamos en el centro
+          setSelectedIdx(40);
+          return;
+        }
+
+        let newIdx = selectedIdx;
+        if (e.key === "ArrowUp") {
+          newIdx = selectedIdx - 9 >= 0 ? selectedIdx - 9 : selectedIdx;
+        } else if (e.key === "ArrowDown") {
+          newIdx = selectedIdx + 9 < 81 ? selectedIdx + 9 : selectedIdx;
+        } else if (e.key === "ArrowLeft") {
+          newIdx = selectedIdx % 9 > 0 ? selectedIdx - 1 : selectedIdx;
+        } else if (e.key === "ArrowRight") {
+          newIdx = selectedIdx % 9 < 8 ? selectedIdx + 1 : selectedIdx;
+        }
+        setSelectedIdx(newIdx);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIdx]);
 
   const handlePauseToggle = () => setIsPaused(!isPaused);
 
@@ -590,9 +668,12 @@ export default function SudokuBoard() {
   // 🛑 EL CABLE FINAL: ENVIAR TELEMETRÍA AL GANAR
   useEffect(() => {
     const isFull = grid.every((cell) => cell !== null);
-    if (isFull && conflicts.size === 0 && !isGameWon) {
+    if (isFull && conflicts.size === 0 && !isGameWonPersistent) {
       setIsGameWon(true);
+      setIsGameWonPersistent(true);
       setIsRunning(false);
+
+      console.log("🏆 ¡Sudoku completado!");
 
       if (hintHistory.length > 0) {
         console.log("📡 Procesando telemetría de la partida...");
@@ -601,7 +682,7 @@ export default function SudokuBoard() {
         saveTelemetryToDB(telemetryData);
       }
     }
-  }, [grid, conflicts, isGameWon, initialPuzzle, hintHistory]);
+  }, [grid, conflicts, isGameWonPersistent, initialPuzzle, hintHistory]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -611,6 +692,12 @@ export default function SudokuBoard() {
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [autoPauseEnabled]);
+
+  useEffect(() => {
+    if (aiNotes === null && grid.some(n => n !== null)) {
+      setAiNotes(calculateAllCandidates(grid));
+    }
+  }, [grid, aiNotes]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -737,6 +824,7 @@ export default function SudokuBoard() {
         highlights={highlights}
         isPaused={isPaused}
         isGameWon={isGameWon}
+        isCandidateHighlightOn={isCandidateHighlightOn}
       />
     </div>
   );
@@ -777,6 +865,8 @@ export default function SudokuBoard() {
         onRestoreNotesClick={handleRestoreNotes}
         hasManualNotesBackup={manualNotesBackup !== null}
         isWeb={isWeb}
+        isCandidateHighlightOn={isCandidateHighlightOn}
+        onToggleCandidateHighlight={() => setIsCandidateHighlightOn(!isCandidateHighlightOn)}
       />
       <ControlTools
         hintState={hintState as any}
@@ -831,6 +921,8 @@ export default function SudokuBoard() {
       >
         {isScanning ? "Escaneando... ⏳" : "Importar Sudoku 📸"}
       </button>
+
+
       <div style={{ marginTop: "16px" }}>
         <ControlTools
           hintState={hintState as any}
@@ -838,6 +930,7 @@ export default function SudokuBoard() {
           onCancelHint={cancelHint}
         />
       </div>
+
     </div>
   );
 
@@ -867,6 +960,8 @@ export default function SudokuBoard() {
         onRestoreNotesClick={handleRestoreNotes}
         hasManualNotesBackup={manualNotesBackup !== null}
         isWeb={isWeb}
+        isCandidateHighlightOn={isCandidateHighlightOn}
+        onToggleCandidateHighlight={() => setIsCandidateHighlightOn(!isCandidateHighlightOn)}
       />
     </div>
   );
@@ -874,15 +969,19 @@ export default function SudokuBoard() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        position: "fixed", // 🔒 Fija la aplicación al viewport para "Movimiento Cero"
+        inset: 0,
+        height: "100dvh",
+        width: "100vw",
         backgroundColor: "#f0f0f0",
-        overflowY: "auto",
-        overflowX: "hidden",
+        overflow: "hidden", // 🚫 Elimina cualquier barra de desplazamiento
+        display: "flex",
+        flexDirection: "column",
         paddingTop: isWeb
           ? "10px"
           : "calc(env(safe-area-inset-top, 20px) + 20px)",
-        paddingBottom: "80px",
-        width: "100%",
+        paddingBottom: "20px",
+        boxSizing: "border-box",
       }}
     >
       <input
@@ -940,6 +1039,7 @@ export default function SudokuBoard() {
         autoPauseEnabled={autoPauseEnabled}
         setAutoPauseEnabled={setAutoPauseEnabled}
         handleRestart={handleResetCurrent}
+        onToggleWinModal={() => setIsGameWon(false)}
       />
     </div>
   );

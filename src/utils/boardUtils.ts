@@ -39,9 +39,9 @@ export function getCellBgColor(
   else if (highlights.secondaryCells.includes(globalIdx)) bgColor = "#fbcfe8";
   else if (highlights.focusNumber !== null && val === highlights.focusNumber)
     bgColor = "#e69100";
-  else if (hasConflict && !isInitial) bgColor = "#ffcccc";
   else if (!hintState.active && isSelected)
     bgColor = val !== null ? "#d48200" : "#fb9b00";
+  else if (hasConflict && !isInitial) bgColor = "#ffcccc";
   else if (!hintState.active && isSameValue) bgColor = "#e69100";
   else if (!hintState.active && isPeer)
     bgColor = isInitial ? "#d3c6af" : "#f9eac2";
